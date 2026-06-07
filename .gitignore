@@ -1,12 +1,14 @@
 /Analisis_Meteorologi/analisis/
 /Analisis_Meteorologi/open_meteo_jerukagung/
+/Analisis_Meteorologi/cache_data/
 /Analisis_Meteorologi/open_meteo_kebumen/
 /Analisis_Meteorologi/open_meteo_klirong/
 /Analisis_Meteorologi/periode_tertentu_plots/
 /Analisis_Meteorologi/plots_hyetograph_bulanan/
 /Analisis_Meteorologi/plots_heatmap_anomali_suhu/
 /Analisis_Meteorologi/weather_data_csv/
+/Analisis_Meteorologi/logs/
 /Analisis_Meteorologi/.cache.sqlite
-/DeepLearning_Meteorologi/weather_data_sensor/
-/DeepLearning_Meteorologi/raw_data_sensor/
-/DeepLearning_Meteorologi/logs/
+/Analisis_Meteorologi/__pycache__/
+/Analisis_Meteorologi/scratch/
+main.cpp
