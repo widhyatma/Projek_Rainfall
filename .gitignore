@@ -7,7 +7,7 @@
 /Analisis_Meteorologi/plots_hyetograph_bulanan/
 /Analisis_Meteorologi/plots_heatmap_anomali_suhu/
 /Analisis_Meteorologi/weather_data_csv/
-/Analisis_Meteorologi/logs/
+/Analisis_Meteorologi/datalogs/
 /Analisis_Meteorologi/.cache.sqlite
 /Analisis_Meteorologi/__pycache__/
 /Analisis_Meteorologi/scratch/
