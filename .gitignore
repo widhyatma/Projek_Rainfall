@@ -11,5 +11,7 @@
 /Analisis_Meteorologi/.cache.sqlite
 /Analisis_Meteorologi/__pycache__/
 /Analisis_Meteorologi/scratch/
-/outputs/
+/Analisis_Meteorologi/model_imputasi/__pycache__/
+/Analisis_Meteorologi/model_imputasi/outputs/
+/Analisis_Meteorologi/model_imputasi/logs/
 main.cpp
