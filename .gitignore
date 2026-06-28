@@ -1,8 +1,7 @@
-/Analisis_Meteorologi/analisis/
+/Analisis_Meteorologi/Analisis_Bulanan/
 /Analisis_Meteorologi/open_meteo_jerukagung/
 /Analisis_Meteorologi/cache_data/
 /Analisis_Meteorologi/clear_data/
-/Analisis_Meteorologi/Data_Satelit/
 /Analisis_Meteorologi/periode_tertentu_plots/
 /Analisis_Meteorologi/plots_hyetograph_bulanan/
 /Analisis_Meteorologi/plots_heatmap_anomali_suhu/
@@ -19,4 +18,5 @@
 /Model_Imputasi/__pycache__/
 /DeepLearning_Satelit/outputs_lstm/
 /DeepLearning_Satelit/outputs_xgboost/
+/Google_Earth_Engine/
 main.cpp
