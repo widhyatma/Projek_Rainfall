@@ -17,4 +17,6 @@
 /DeepLearning_Satelit/__pycache__/
 /Model_Imputasi/outputs/
 /Model_Imputasi/__pycache__/
+/DeepLearning_Satelit/outputs_lstm/
+/DeepLearning_Satelit/outputs_xgboost/
 main.cpp
