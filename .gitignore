@@ -20,3 +20,5 @@
 /DeepLearning_Satelit/outputs_xgboost/
 /Google_Earth_Engine/
 main.cpp
+/Model_Imputasi/cuaca_gabungan_jerukagung.csv
+Model_Imputasi/.cache.sqlite
