@@ -57,7 +57,7 @@ import joblib
 # In[2]:
 
 
-RUN_MODE = "LOCAL_TEST"  # Nilai yang tersedia: "LOCAL_TEST", "FULL_TRAIN"
+RUN_MODE = "FULL_TRAIN"  # Nilai yang tersedia: "LOCAL_TEST", "FULL_TRAIN"
 
 # Deteksi otomatis apakah sistem berjalan di Kaggle Cloud
 IS_KAGGLE = 'KAGGLE_KERNEL_RUN_TYPE' in os.environ or os.path.exists('/kaggle')
@@ -628,7 +628,7 @@ for s in range(X_train_cont_s.shape[0]):
         mask_feat_idx = col_idx  # masks are first 4 columns in features
         filled_feat_idx = len(TARGET_VARS) + col_idx # filled targets are next 4 columns
 
-        observed_timesteps = np.where(X_train_cont_s[s, :, mask_feat_idx] == 1.0)[0]
+        observed_timesteps = np.where(X_train_cont_s[s, :, mask_feat_idx] >= 0.99)[0]
         if len(observed_timesteps) > 0:
             num_to_mask = int(rate * len(observed_timesteps))
             mask_times = np.random.choice(observed_timesteps, size=num_to_mask, replace=False)
@@ -639,12 +639,13 @@ for s in range(X_train_cont_s.shape[0]):
             # Fill with ERA5 corresponding feature scaled
             # ERA5 feature column index in features:
             # masks (4) + filled targets (4) + ERA5 (9) + time (6)
-            # ERA5 variables start at index 8. Mapping:
-            # temperature -> era5_temperature_2m (index 8)
-            # humidity -> era5_relative_humidity_2m (index 9)
-            # dewpoint -> era5_dew_point_2m (index 10)
-            # pressure -> era5_pressure_msl (index 11)
-            era_idx_map = {'temperature': 6, 'humidity': 7, 'dewpoint': 8, 'pressure': 9}
+            # ERA5 auxiliary feature indices in continuous_features matrix:
+            # masks(4) + filled(4) = 8 prefix columns, then ERA5 starts at index 8
+            # temperature -> era5_temperature_2m       (index 8)
+            # humidity    -> era5_relative_humidity_2m (index 9)
+            # dewpoint    -> era5_dew_point_2m         (index 10)
+            # pressure    -> era5_pressure_msl         (index 11)
+            era_idx_map = {'temperature': 8, 'humidity': 9, 'dewpoint': 10, 'pressure': 11}
             era_col = era_idx_map[TARGET_VARS[col_idx]]
             X_train_cont_s[s, mask_times, filled_feat_idx] = X_train_cont_s[s, mask_times, era_col]
 
@@ -795,7 +796,7 @@ print("  Learning curve and training loss plots saved.")
 # # 9. Multi-Rate Simulated Missingness Evaluation
 # 
 
-# In[17]:
+# In[ ]:
 
 
 print('\n[9/10] Evaluating model on simulated missingness (10%-50%)...')
@@ -852,7 +853,7 @@ for rate in rates:
                 # Apply mask to input features
                 X_val_masked_s[s, mask_times, mask_feat_idx] = 0.0
 
-                era_idx_map = {'temperature': 6, 'humidity': 7, 'dewpoint': 8, 'pressure': 9}
+                era_idx_map = {'temperature': 8, 'humidity': 9, 'dewpoint': 10, 'pressure': 11}
                 era_col = era_idx_map[TARGET_VARS[col_idx]]
                 X_val_masked_s[s, mask_times, filled_feat_idx] = X_val_masked_s[s, mask_times, era_col]
 
@@ -1106,7 +1107,7 @@ print("  Evaluation report text saved.")
 # # 10. Gap Filling (Inference) and Exporting Final CSVs
 # 
 
-# In[18]:
+# In[ ]:
 
 
 print('\n[10/10] Reconstructing actual gaps in all node CSVs...')
@@ -1250,7 +1251,7 @@ print('\n=== UNIVERSAL IMPUTATION PROCESS COMPLETED SUCCESSFULLY! ===')
 # # 11. Plot Comparison of Imputed Gaps for Each Node
 # 
 
-# In[19]:
+# In[ ]:
 
 
 print('\n[11/10] Generating imputation comparison plots for missing data windows...')
