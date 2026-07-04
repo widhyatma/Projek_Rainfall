@@ -18,7 +18,10 @@
 /Model_Imputasi/__pycache__/
 /DeepLearning_Satelit/outputs_lstm/
 /DeepLearning_Satelit/outputs_xgboost/
-/Google_Earth_Engine/
+/Google_Earth_Engine/ClimateEngineData
+/Google_Earth_Engine/Data_Satelit
+/Google_Earth_Engine/Hasil_Analisis
+/Google_Earth_Engine/Hasil_Analisis_Hujan
 main.cpp
 /Model_Imputasi/cuaca_gabungan_jerukagung.csv
 Model_Imputasi/.cache.sqlite
