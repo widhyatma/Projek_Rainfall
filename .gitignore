@@ -22,6 +22,11 @@
 /Google_Earth_Engine/Data_Satelit
 /Google_Earth_Engine/Hasil_Analisis
 /Google_Earth_Engine/Hasil_Analisis_Hujan
+/DeepLearning_Satelit/results_xgboost
+/DeepLearning_Satelit/results_lstm
+/DeepLearning_Satelit/outputs_inference
+/DeepLearning_Satelit/results_lstm.zip
+/DeepLearning_Satelit/results_xgboost.zip
 main.cpp
 /Model_Imputasi/cuaca_gabungan_jerukagung.csv
 Model_Imputasi/.cache.sqlite
