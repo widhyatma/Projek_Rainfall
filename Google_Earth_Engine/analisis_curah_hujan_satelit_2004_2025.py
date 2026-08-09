@@ -3,7 +3,8 @@
 """
 🛰️ Analisis Komparasi Menyeluruh Curah Hujan Satelit & Reanalisis Harian (2004 – 2025)
 Matriks Komparasi Antar-Variabel (All-to-All Pairwise Inter-Comparison) & Benchmark CHIRPS Reanalisis.
-Membandingkan CHIRPS_RNL, CHIRPS_SAT, GSMaP, IMERG, PERSIANN, ERA5, ERA5_LAND, dan Observasi Pos Hujan OYA.
+Membandingkan 9 Variabel: CHIRPS_RNL, CHIRPS_SAT, CHIRPS_FNL, GSMaP, IMERG, PERSIANN, ERA5, ERA5_LAND, dan Observasi Pos Hujan OYA.
+Dataset: Data_Curah_Hujan_Kebumen_2004_2025.csv
 """
 
 import os
@@ -25,7 +26,13 @@ sns.set_theme(style='whitegrid')
 
 # ─── 1. Inisialisasi Path & Direktori Output ───
 base_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.abspath('Google_Earth_Engine')
-data_csv = os.path.join(base_dir, 'Data_Satelit', 'Data_Curah_Hujan_Satelit_2004_2025.csv')
+data_csv = os.path.join(base_dir, 'Data_Satelit', 'Data_Curah_Hujan_Kebumen_2004_2025.csv')
+if not os.path.exists(data_csv):
+    # Fallback to old filename if needed
+    alt_csv = os.path.join(base_dir, 'Data_Satelit', 'Data_Curah_Hujan_Satelit_2004_2025.csv')
+    if os.path.exists(alt_csv):
+        data_csv = alt_csv
+
 out_dir = os.path.join(base_dir, 'Hasil_Analisis_Harian_2004_2025')
 os.makedirs(out_dir, exist_ok=True)
 
@@ -39,6 +46,7 @@ if not os.path.exists(data_csv):
 
 df_raw = pd.read_csv(data_csv)
 print(f"Total baris data mentah: {len(df_raw):,}")
+print(f"Daftar kolom mentah: {df_raw.columns.tolist()} (Total: {len(df_raw.columns)} kolom)")
 
 # Parsing datetime
 if 'datetime_utc' in df_raw.columns:
@@ -48,15 +56,11 @@ elif 'unixtime' in df_raw.columns:
 
 df = df_raw.sort_values('datetime').set_index('datetime')
 
-# Buat versi ERA5_LAND terkoreksi skala untuk visualisasi komparatif yang adil
-if 'ERA5_LAND' in df.columns and df['ERA5_LAND'].mean() > 30:
-    df['ERA5_LAND_SCALED'] = df['ERA5_LAND'] / 14.498
-
-sat_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']
+sat_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']
 avail_cols = [c for c in sat_cols if c in df.columns]
 df_eval = df[avail_cols].copy()
 
-print("Kolom yang dianalisis:", avail_cols)
+print("Kolom variabel yang dianalisis:", avail_cols)
 print(f"Rentang Waktu: {df_eval.index.min()} s/d {df_eval.index.max()} ({len(df_eval):,} hari)")
 
 # ─── 3. Statistik Deskriptif & Audit Data ───
@@ -71,10 +75,10 @@ desc_stats.to_csv(os.path.join(out_dir, 'statistik_deskriptif_harian.csv'))
 print("\n=== STATISTIK DESKRIPTIF DATA HARIAN (mm/hari) ===")
 print(desc_stats.round(3).to_string())
 
-# ─── 4. Matriks Scatter Plot Pairwise All-to-All (8x8) ───
+# ─── 4. Matriks Scatter Plot Pairwise All-to-All (9x9) ───
 print("\nMembuat Scatter Plot Matrix Pairwise (All-to-All)...")
 n_cols = len(avail_cols)
-fig_size = 2.8 * n_cols
+fig_size = 2.6 * n_cols
 fig, axes = plt.subplots(n_cols, n_cols, figsize=(fig_size, fig_size), squeeze=False)
 fig.suptitle('Scatter Plot Matrix — Korelasi Curah Hujan Harian All-to-All (2004 – 2025)\nSemua Kombinasi Pasangan Satelit, Reanalisis (ERA5, ERA5-Land), dan Pos Hujan Oya',
              fontsize=16, fontweight='bold', y=1.01)
@@ -88,10 +92,10 @@ for i, col_y in enumerate(avail_cols):
             data_diag = df_eval[col_y].dropna()
             ax.hist(data_diag, bins=35, color=COLORS[i % len(COLORS)], alpha=0.75, edgecolor='white', linewidth=0.5)
             ax.set_facecolor('#f7f9fa')
-            ax.set_title(col_y, fontsize=9.5, fontweight='bold', pad=3)
-            ax.set_xlabel('mm/hari', fontsize=7)
-            ax.set_ylabel('Freq', fontsize=7)
-            ax.tick_params(labelsize=6.5)
+            ax.set_title(col_y, fontsize=9.0, fontweight='bold', pad=3)
+            ax.set_xlabel('mm/hari', fontsize=6.5)
+            ax.set_ylabel('Freq', fontsize=6.5)
+            ax.tick_params(labelsize=6.0)
         else:
             mask = df_eval[col_x].notna() & df_eval[col_y].notna()
             x_data = df_eval.loc[mask, col_x]
@@ -104,31 +108,29 @@ for i, col_y in enumerate(avail_cols):
             r_p, _ = stats.pearsonr(x_data, y_data)
             r_s, _ = stats.spearmanr(x_data, y_data)
             
-            n_plot = min(len(x_data), 3000)
+            n_plot = min(len(x_data), 2500)
             idx_samp = np.random.choice(len(x_data), n_plot, replace=False) if len(x_data) > n_plot else np.arange(len(x_data))
-            ax.scatter(x_data.iloc[idx_samp], y_data.iloc[idx_samp], alpha=0.20, s=6, color=COLORS[j % len(COLORS)], edgecolors='none')
+            ax.scatter(x_data.iloc[idx_samp], y_data.iloc[idx_samp], alpha=0.20, s=5, color=COLORS[j % len(COLORS)], edgecolors='none')
             
-            # Garis 1:1
             joint_min = 0
             joint_max = max(x_data.max(), y_data.max())
-            ax.plot([joint_min, joint_max], [joint_min, joint_max], 'k--', linewidth=0.9, alpha=0.6)
+            ax.plot([joint_min, joint_max], [joint_min, joint_max], 'k--', linewidth=0.8, alpha=0.6)
             
-            # Garis OLS
             slope, intercept, _, _, _ = stats.linregress(x_data, y_data)
             x_line = np.linspace(joint_min, joint_max, 50)
-            ax.plot(x_line, slope * x_line + intercept, color='crimson', linewidth=1.1)
+            ax.plot(x_line, slope * x_line + intercept, color='crimson', linewidth=1.0)
             
             txt = f"r={r_p:.2f}\nρ={r_s:.2f}"
-            ax.text(0.04, 0.96, txt, transform=ax.transAxes, fontsize=6.8, va='top', ha='left',
+            ax.text(0.04, 0.96, txt, transform=ax.transAxes, fontsize=6.5, va='top', ha='left',
                     bbox=dict(facecolor='white', alpha=0.8, edgecolor='none', boxstyle='round,pad=0.2'))
-            ax.tick_params(labelsize=6.5)
+            ax.tick_params(labelsize=6.0)
             
         if i == n_cols - 1:
-            ax.set_xlabel(avail_cols[j], fontsize=8.5, fontweight='bold', labelpad=3)
+            ax.set_xlabel(avail_cols[j], fontsize=8.0, fontweight='bold', labelpad=3)
         else:
             ax.set_xlabel('')
         if j == 0:
-            ax.set_ylabel(avail_cols[i], fontsize=8.5, fontweight='bold', labelpad=3)
+            ax.set_ylabel(avail_cols[i], fontsize=8.0, fontweight='bold', labelpad=3)
         else:
             ax.set_ylabel('')
 
@@ -141,25 +143,25 @@ print("Membuat Heatmap Korelasi Pearson & Spearman...")
 corr_pearson = df_eval[avail_cols].corr(method='pearson').round(3)
 corr_spearman = df_eval[avail_cols].corr(method='spearman').round(3)
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5))
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(17, 7.0))
 
 sns.heatmap(corr_pearson, annot=True, fmt='.2f', cmap='Blues', vmin=0, vmax=1, square=True,
-            linewidths=0.8, linecolor='white', annot_kws={'size': 10, 'weight': 'bold'}, ax=ax1,
+            linewidths=0.8, linecolor='white', annot_kws={'size': 9.5, 'weight': 'bold'}, ax=ax1,
             cbar_kws={'label': 'Pearson Correlation (r)', 'shrink': 0.8})
-ax1.set_title('Matriks Korelasi Pearson (r)\nLinear Relationship (All-to-All)', fontsize=13, fontweight='bold', pad=12)
+ax1.set_title('Matriks Korelasi Pearson (r)\nLinear Relationship (All-to-All 9 Variabel)', fontsize=13, fontweight='bold', pad=12)
 ax1.tick_params(axis='x', rotation=35)
 
 sns.heatmap(corr_spearman, annot=True, fmt='.2f', cmap='Greens', vmin=0, vmax=1, square=True,
-            linewidths=0.8, linecolor='white', annot_kws={'size': 10, 'weight': 'bold'}, ax=ax2,
+            linewidths=0.8, linecolor='white', annot_kws={'size': 9.5, 'weight': 'bold'}, ax=ax2,
             cbar_kws={'label': 'Spearman Correlation (ρ)', 'shrink': 0.8})
-ax2.set_title('Matriks Korelasi Spearman (ρ)\nRank-Based Monotonic Relationship (All-to-All)', fontsize=13, fontweight='bold', pad=12)
+ax2.set_title('Matriks Korelasi Spearman (ρ)\nRank-Based Monotonic Relationship (All-to-All 9 Variabel)', fontsize=13, fontweight='bold', pad=12)
 ax2.tick_params(axis='x', rotation=35)
 
 plt.tight_layout()
 plt.savefig(os.path.join(out_dir, '02_heatmap_korelasi_pearson_spearman.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
-# ─── 6. Matriks Lengkap Evaluasi Metrik All-to-All ($8 \times 8$) ───
+# ─── 6. Matriks Lengkap Evaluasi Metrik All-to-All ($9 \times 9$) ───
 print("Menghitung Matriks Evaluasi Lengkap Inter-Model All-to-All...")
 pairwise_all = []
 rmse_matrix = pd.DataFrame(index=avail_cols, columns=avail_cols, dtype=float)
@@ -184,11 +186,9 @@ for col_ref in avail_cols:
         bias = np.mean(sim - ref)
         pbias = 100.0 * np.sum(sim - ref) / np.sum(ref) if np.sum(ref) != 0 else 0
         
-        # NSE
         denom_nse = np.sum((ref - np.mean(ref))**2)
         nse = 1 - (np.sum((ref - sim)**2) / denom_nse) if denom_nse != 0 else -999
         
-        # KGE
         r_kge = rp
         alpha_kge = np.std(sim) / np.std(ref) if np.std(ref) != 0 else 1
         beta_kge = np.mean(sim) / np.mean(ref) if np.mean(ref) != 0 else 1
@@ -220,8 +220,8 @@ df_pairwise_all = pd.DataFrame(pairwise_all)
 df_pairwise_all.to_csv(os.path.join(out_dir, 'ringkasan_matriks_pairwise_all_to_all.csv'), index=False)
 
 # Visualisasi 4 Heatmap Matriks Error (RMSE, MAE, KGE, PBIAS)
-fig, axes = plt.subplots(2, 2, figsize=(16, 13))
-fig.suptitle('Matriks Evaluasi Inter-Model All-to-All ($8 \\times 8$ Inter-Comparison Matrix)', fontsize=15, fontweight='bold', y=0.98)
+fig, axes = plt.subplots(2, 2, figsize=(17, 14))
+fig.suptitle('Matriks Evaluasi Inter-Model All-to-All ($9 \\times 9$ Inter-Comparison Matrix)', fontsize=15, fontweight='bold', y=0.98)
 
 # 1. RMSE Matrix
 sns.heatmap(rmse_matrix, annot=True, fmt='.1f', cmap='YlOrRd', ax=axes[0, 0], linewidths=0.5, cbar_kws={'label': 'RMSE (mm/hari)'})
@@ -345,7 +345,7 @@ print("\n=== RINGKASAN METRIK EVALUASI vs CHIRPS REANALISIS (CHIRPS_RNL) ===")
 print(df_chirps_metrics.to_string(index=False))
 
 # ─── 8. Bar Chart Perbandingan Akurasi vs CHIRPS_RNL ───
-fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+fig, axes = plt.subplots(2, 2, figsize=(16, 10.5))
 fig.suptitle('Kinerja Akurasi Seluruh Produk Presipitasi terhadap CHIRPS Reanalisis Benchmark (2004 – 2025)',
              fontsize=14, fontweight='bold', y=0.98)
 
@@ -369,7 +369,6 @@ for p in ax1.patches:
 
 # 2. Error Metrics (RMSE & MAE) vs CHIRPS_RNL
 ax2 = axes[0, 1]
-# Filter ERA5_LAND raw untuk menjaga keterbacaan bar chart
 df_plot_err = df_chirps_metrics.copy()
 ax2.bar(x_pos - width/2, df_plot_err['RMSE (mm/hari)'], width, label='RMSE (mm/hari)', color='#d7191c')
 ax2.bar(x_pos + width/2, df_plot_err['MAE (mm/hari)'], width, label='MAE (mm/hari)', color='#fdae61')
@@ -467,12 +466,12 @@ for sat_name in chirps_ref_cols:
 df_contingency_chirps = pd.DataFrame(contingency_chirps)
 df_contingency_chirps.to_csv(os.path.join(out_dir, 'ringkasan_metrik_kategorikal_vs_chirps_rnl.csv'), index=False)
 
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+fig, axes = plt.subplots(2, 2, figsize=(15, 10.5))
 fig.suptitle('Kinerja Deteksi Kejadian Hujan terhadap CHIRPS Reanalisis Benchmark Berdasarkan Ambang Batas (mm/hari)',
              fontsize=14, fontweight='bold', y=0.98)
 
 palette = {
-    'CHIRPS_SAT': '#377eb8', 'GSMaP': '#4daf4a', 'IMERG': '#984ea3',
+    'CHIRPS_SAT': '#377eb8', 'CHIRPS_FNL': '#17becf', 'GSMaP': '#4daf4a', 'IMERG': '#984ea3',
     'PERSIANN': '#ff7f00', 'ERA5': '#a65628', 'ERA5_LAND': '#f781bf', 'OYA': '#e41a1c'
 }
 
@@ -487,7 +486,7 @@ for ax, metric, title, ylim in zip(
 ):
     for sat_name in chirps_ref_cols:
         sub = df_contingency_chirps[df_contingency_chirps['Produk Presipitasi'] == sat_name]
-        ax.plot(sub['Ambang Batas (mm/hari)'], sub[metric], marker='o', lw=1.8, label=sat_name, color=palette.get(sat_name))
+        ax.plot(sub['Ambang Batas (mm/hari)'], sub[metric], marker='o', lw=1.8, label=sat_name, color=palette.get(sat_name, '#333333'))
     ax.set_title(title, fontsize=11, fontweight='bold')
     ax.set_xlabel('Ambang Batas Curah Hujan (mm/hari)', fontsize=9.5)
     ax.set_ylabel(metric, fontsize=9.5)
@@ -510,12 +509,12 @@ yearly_rain = df.groupby('year')[avail_cols].sum()
 yearly_rain.to_csv(os.path.join(out_dir, 'ringkasan_total_tahunan_2004_2025.csv'))
 
 fig, ax = plt.subplots(figsize=(15, 6.5))
-for col in ['CHIRPS_RNL', 'CHIRPS_SAT', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'OYA']:
+for col in ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']:
     if col in yearly_rain.columns:
         ls = '-' if col == 'CHIRPS_RNL' else ('--' if col == 'OYA' else '-.')
-        lw = 2.5 if col in ['CHIRPS_RNL', 'IMERG', 'OYA'] else 1.6
+        lw = 2.5 if col in ['CHIRPS_RNL', 'IMERG', 'OYA'] else 1.4
         marker = 'D' if col == 'CHIRPS_RNL' else ('o' if col == 'OYA' else 's')
-        ax.plot(yearly_rain.index, yearly_rain[col], label=f'{col}', lw=lw, linestyle=ls, marker=marker, markersize=4.5)
+        ax.plot(yearly_rain.index, yearly_rain[col], label=f'{col}', lw=lw, linestyle=ls, marker=marker, markersize=4.0)
 
 ax.set_title('Perbandingan Akumulasi Curah Hujan Tahunan (2004 – 2025) di Pos Hujan Oya dan Sekitarnya\n(CHIRPS Reanalisis sebagai Garis Acuan Solid Tebal)',
              fontsize=14, fontweight='bold', pad=12)
@@ -523,7 +522,7 @@ ax.set_xlabel('Tahun', fontsize=11)
 ax.set_ylabel('Total Curah Hujan Tahunan (mm/tahun)', fontsize=11)
 ax.set_xticks(yearly_rain.index)
 ax.set_xticklabels(yearly_rain.index, rotation=45, fontsize=9)
-ax.legend(loc='upper right', fontsize=8.5, ncol=2)
+ax.legend(loc='upper right', fontsize=8.0, ncol=3)
 ax.grid(True, linestyle=':', alpha=0.6)
 
 # Anotasi fenomena ekstrem
@@ -544,17 +543,17 @@ plt.close(fig)
 df_rolling_30d = df[avail_cols].rolling(window=30, min_periods=5).mean()
 
 fig, ax = plt.subplots(figsize=(16, 5))
-for col in ['CHIRPS_RNL', 'IMERG', 'CHIRPS_SAT', 'GSMaP', 'ERA5', 'OYA']:
+for col in ['CHIRPS_RNL', 'CHIRPS_FNL', 'IMERG', 'CHIRPS_SAT', 'GSMaP', 'ERA5', 'ERA5_LAND', 'OYA']:
     if col in df_rolling_30d.columns:
-        lw = 2.2 if col in ['CHIRPS_RNL', 'IMERG', 'OYA'] else 1.2
-        alpha = 0.9 if col in ['CHIRPS_RNL', 'OYA'] else 0.65
+        lw = 2.2 if col in ['CHIRPS_RNL', 'IMERG', 'OYA'] else 1.1
+        alpha = 0.9 if col in ['CHIRPS_RNL', 'OYA'] else 0.60
         ax.plot(df_rolling_30d.index, df_rolling_30d[col], label=f'{col} (30-day MA)', lw=lw, alpha=alpha)
 
 ax.set_title('Dinamika Fluktuasi Curah Hujan Rata-Rata 30-Hari (30-Day Moving Average, 2004 – 2025)\n(Membandingkan Siklus Intra-Musiman terhadap CHIRPS Reanalisis)',
              fontsize=13, fontweight='bold', pad=10)
 ax.set_xlabel('Tahun', fontsize=11)
 ax.set_ylabel('Rata-Rata Hujan 30-Hari (mm/hari)', fontsize=11)
-ax.legend(loc='upper right', fontsize=9.0)
+ax.legend(loc='upper right', fontsize=8.5, ncol=2)
 ax.grid(True, linestyle=':', alpha=0.5)
 
 plt.tight_layout()
@@ -567,10 +566,10 @@ df_sorted = df[avail_cols].sort_index()
 cum_chirps = df_sorted['CHIRPS_RNL'].cumsum() / 1000.0
 
 fig, ax = plt.subplots(figsize=(11, 8))
-for col_name in ['CHIRPS_SAT', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'OYA']:
+for col_name in ['CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']:
     if col_name in df_sorted.columns:
         cum_sim = df_sorted[col_name].cumsum() / 1000.0
-        ax.plot(cum_chirps, cum_sim, label=f'{col_name}', lw=2.0)
+        ax.plot(cum_chirps, cum_sim, label=f'{col_name}', lw=1.9)
 
 max_cum = cum_chirps.max()
 ax.plot([0, max_cum], [0, max_cum], 'k--', lw=1.5, alpha=0.7, label='1:1 Identik')
@@ -579,7 +578,7 @@ ax.set_title('Kurva Massa Ganda (Double-Mass Curve): Akumulasi Model vs CHIRPS R
              fontsize=13, fontweight='bold', pad=12)
 ax.set_xlabel('Akumulasi Curah Hujan CHIRPS_RNL Benchmark (Meter / 1.000 mm)', fontsize=11)
 ax.set_ylabel('Akumulasi Curah Hujan Produk Evaluasi (Meter / 1.000 mm)', fontsize=11)
-ax.legend(loc='upper left', fontsize=9)
+ax.legend(loc='upper left', fontsize=8.5)
 ax.grid(True, linestyle=':', alpha=0.6)
 
 plt.tight_layout()
@@ -601,8 +600,8 @@ monthly_clim.index = month_order
 monthly_clim.to_csv(os.path.join(out_dir, 'ringkasan_klimatologi_bulanan_2004_2025.csv'))
 
 # Bar chart klimatologi
-fig, ax = plt.subplots(figsize=(15, 6.5))
-clim_plot_cols = [c for c in avail_cols if c != 'ERA5_LAND']
+fig, ax = plt.subplots(figsize=(16, 6.5))
+clim_plot_cols = avail_cols
 df_clim_melted = monthly_clim[clim_plot_cols].reset_index().rename(columns={'index': 'Bulan'}).melt(id_vars='Bulan', var_name='Dataset', value_name='Curah_Hujan_mm')
 df_clim_melted['Bulan'] = pd.Categorical(df_clim_melted['Bulan'], categories=month_order, ordered=True)
 
@@ -610,7 +609,7 @@ sns.barplot(data=df_clim_melted, x='Bulan', y='Curah_Hujan_mm', hue='Dataset', p
 ax.set_title('Pola Musiman Rata-Rata Curah Hujan Bulanan (Klimatologi 2004 – 2025)', fontsize=14, fontweight='bold', pad=12)
 ax.set_xlabel('Bulan', fontsize=11)
 ax.set_ylabel('Total Curah Hujan Rata-Rata (mm/bulan)', fontsize=11)
-ax.legend(loc='upper right', fontsize=8.5, ncol=2)
+ax.legend(loc='upper right', fontsize=8.0, ncol=3)
 ax.grid(True, axis='y', linestyle=':', alpha=0.6)
 
 plt.tight_layout()
@@ -623,13 +622,13 @@ df_monthly_totals['month_name'] = df_monthly_totals.index.strftime('%b')
 df_monthly_melted = df_monthly_totals.melt(id_vars='month_name', value_vars=clim_plot_cols, var_name='Dataset', value_name='Total_Hujan_Bulanan_mm')
 df_monthly_melted['month_name'] = pd.Categorical(df_monthly_melted['month_name'], categories=month_order, ordered=True)
 
-fig, ax = plt.subplots(figsize=(16, 6.5))
+fig, ax = plt.subplots(figsize=(17, 7.0))
 sns.boxplot(data=df_monthly_melted, x='month_name', y='Total_Hujan_Bulanan_mm', hue='Dataset', palette='tab10',
-            showfliers=True, fliersize=2.2, linewidth=1.0, ax=ax)
+            showfliers=True, fliersize=2.0, linewidth=0.9, ax=ax)
 ax.set_title('Diagram Kotak (Boxplot) Variabilitas & Sebaran Curah Hujan Bulanan (2004 – 2025)', fontsize=14, fontweight='bold', pad=12)
 ax.set_xlabel('Bulan', fontsize=11)
 ax.set_ylabel('Curah Hujan Bulanan (mm/bulan)', fontsize=11)
-ax.legend(loc='upper right', fontsize=8.5, ncol=2)
+ax.legend(loc='upper right', fontsize=8.0, ncol=3)
 ax.grid(True, axis='y', linestyle=':', alpha=0.6)
 
 plt.tight_layout()
@@ -643,33 +642,33 @@ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 for col in clim_plot_cols:
     rain_wet = df[col].dropna()
     rain_wet = rain_wet[rain_wet > 0.1]
-    sns.kdeplot(rain_wet, label=col, lw=1.8, ax=ax1, log_scale=True)
+    sns.kdeplot(rain_wet, label=col, lw=1.6, ax=ax1, log_scale=True)
 
 ax1.set_title('Distribusi Kepadatan Probabilitas (PDF)\nIntensitas Hujan Hari Basah (> 0.1 mm/hari)', fontsize=12, fontweight='bold')
 ax1.set_xlabel('Curah Hujan (mm/hari, skala log)', fontsize=10)
 ax1.set_ylabel('Kepadatan Densitas (KDE)', fontsize=10)
-ax1.legend(fontsize=8.5)
+ax1.legend(fontsize=8.0)
 ax1.grid(True, which='both', linestyle=':', alpha=0.6)
 
 for col in clim_plot_cols:
     rain_wet = df[col].dropna()
     rain_wet = rain_wet[rain_wet > 0.1].sort_values()
     prob = np.arange(1, len(rain_wet) + 1) / len(rain_wet)
-    ax2.plot(rain_wet, 1.0 - prob, label=col, lw=1.8)
+    ax2.plot(rain_wet, 1.0 - prob, label=col, lw=1.6)
 
 ax2.set_title('Kurva Probabilitas Pelampauan (Exceedance Probability / CDF)\nFrekuensi Terjadinya Hujan Melebihi Intensitas Tertentu', fontsize=12, fontweight='bold')
 ax2.set_xlabel('Ambang Batas Intensitas Curah Hujan (mm/hari)', fontsize=10)
 ax2.set_ylabel('P(Hujan ≥ x)', fontsize=10)
 ax2.set_xscale('log')
 ax2.set_yscale('log')
-ax2.legend(fontsize=8.5)
+ax2.legend(fontsize=8.0)
 ax2.grid(True, which='both', linestyle=':', alpha=0.6)
 
 plt.tight_layout()
 plt.savefig(os.path.join(out_dir, '11_distribusi_pdf_cdf_intensitas_hujan.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
-# ─── 14. Indeks Anomali Curah Hujan Bulanan (CHIRPS_RNL vs GPM IMERG) ───
+# ─── 14. Indeks Anomali Curah Hujan Bulanan (CHIRPS_RNL) ───
 print("Membuat Grafik Tren Anomali Curah Hujan CHIRPS_RNL...")
 monthly_chirps = df['CHIRPS_RNL'].resample('MS').sum()
 clim_chirps_m = monthly_chirps.groupby(monthly_chirps.index.month).transform('mean')
@@ -697,7 +696,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(out_dir, '12_tren_anomali_curah_hujan_bulanan.png'), dpi=300, bbox_inches='tight')
 plt.close(fig)
 
-# ─── 15. Uji Signifikansi Statistik Non-Parametrik Lengkap (28 Pasangan All-to-All) ───
+# ─── 15. Uji Signifikansi Statistik Non-Parametrik Lengkap (36 Pasangan All-to-All) ───
 print("\nMenjalankan Uji Signifikansi Statistik Lengkap (Wilcoxon Signed-Rank untuk Semua Pasangan)...")
 
 # 1. Wilcoxon Signed-Rank Test untuk Seluruh Pasangan Data Harian
@@ -760,4 +759,4 @@ with pd.ExcelWriter(os.path.join(out_dir, 'ringkasan_komparasi_inter_model_all_t
     df_mw.to_excel(writer, sheet_name='Mann_Whitney_Seasonal', index=False)
     desc_stats.to_excel(writer, sheet_name='Statistik_Deskriptif')
 
-print(f"\n🎉 Seluruh analisis All-to-All Inter-Comparison Matrix dan Benchmark CHIRPS_RNL berhasil diekspor ke: {out_dir}")
+print(f"\n🎉 Seluruh analisis All-to-All Inter-Comparison Matrix dan Benchmark CHIRPS_RNL (9 Variabel) berhasil diekspor ke: {out_dir}")
