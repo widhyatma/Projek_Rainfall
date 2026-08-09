@@ -711,9 +711,11 @@ for i, col_a in enumerate(avail_cols):
             sig_w = "Ya (p < 0.05)" if p_val_w < 0.05 else "Tidak (p ≥ 0.05)"
             wilcoxon_all.append({
                 'Pasangan Inter-Comparison': f'{col_a} ↔ {col_b}',
-                'Jumlah Sampel Hari Basah': len(wet_sub),
-                f'Median {col_a} (mm)': round(float(np.median(wet_sub[col_a])), 2),
-                f'Median {col_b} (mm)': round(float(np.median(wet_sub[col_b])), 2),
+                'Produk A': col_a,
+                'Produk B': col_b,
+                'Median Produk A (mm)': round(float(np.median(wet_sub[col_a])), 2),
+                'Median Produk B (mm)': round(float(np.median(wet_sub[col_b])), 2),
+                'Sampel Hari Basah (N)': len(wet_sub),
                 'Statistik W': round(stat_w, 1),
                 'p-value': f"{p_val_w:.4e}",
                 'Berbeda Nyata Signifikan?': sig_w
