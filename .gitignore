@@ -2,6 +2,15 @@
 *.pyc
 *.pyo
 *.pyd
+*.aux
+*.fdb
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.synctex
+*.gz
 __pycache__/
 /Analisis_Meteorologi/Analisis_Bulanan/
 /Analisis_Meteorologi/open_meteo_jerukagung/
@@ -36,3 +45,4 @@ __pycache__/
 main.cpp
 /Model_Imputasi/cuaca_gabungan_jerukagung.csv
 Model_Imputasi/.cache.sqlite
+staklimjerukagung-b852a12a367e.json

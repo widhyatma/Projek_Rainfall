@@ -1,0 +1,251 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- ARXIV PREPRINT PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[indonesian]{babel}
+\usepackage[margin=1in, top=1.1in, bottom=1.1in, headheight=25pt]{geometry}
+\usepackage{amsmath, amsfonts, amssymb, bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{fancyhdr}
+\usepackage[nopatch=footnote]{microtype}
+\usepackage{authblk}
+\usepackage{enumitem}
+\usepackage{setspace}
+
+% --- COLOR DEFINITIONS ---
+\definecolor{arxivblue}{RGB}{0, 51, 153}
+\definecolor{headergray}{RGB}{90, 100, 110}
+\definecolor{darkslate}{RGB}{30, 41, 59}
+
+% --- HYPERLINK SETUP ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=arxivblue,
+    citecolor=arxivblue,
+    urlcolor=arxivblue,
+    pdftitle={Analisis Komparasi Curah Hujan Satelit & Reanalisis Harian Kebumen (2004-2026)},
+    pdfauthor={Tim Peneliti Hidrometeorologi Kebumen}
+}
+
+% --- GRAPHICS PATH ---
+\graphicspath{
+    {./Hasil_Analisis_Harian_2004_2026/}
+    {Hasil_Analisis_Harian_2004_2026/}
+    {./Hasil_Analisis_Harian_2004_2025/}
+    {./}
+}
+
+% --- ARXIV PREPRINT HEADER & FOOTER ---
+\setlength{\headheight}{25pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsf{\color{headergray}\textbf{A PREPRINT} --- EVALUASI CURAH HUJAN SATELIT \& REANALISIS (2004--2026)}}
+\fancyhead[R]{\small\textsf{\color{headergray}\thepage}}
+\fancyfoot[C]{\footnotesize\textsf{\color{headergray}Wilayah Kabupaten Kebumen, Jawa Tengah}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.0pt}
+
+% --- SECTION STYLING ---
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{arxivblue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{darkslate}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\small\bfseries\color{darkslate}}{\thesubsubsection}{0.5em}{}
+
+% --- TITLE & AUTHOR INFO ---
+\title{\vspace{-1.2cm}\textbf{\Large Analisis Komparasi Menyeluruh Curah Hujan Satelit \& Reanalisis Harian (2004 -- 2026): Matriks Evaluasi Antar-Variabel (\textit{All-to-All}) dan Benchmark Kontinu CHIRPS Reanalisis}}
+
+\author[1]{\textbf{Tim Peneliti Presipitasi \& Hidrologi Kebumen}\thanks{Email korespondensi: \texttt{penelitian.hidrologi@kebumen-project.org}}}
+\author[1]{\textbf{Google Earth Engine \& Climate Analytics Working Group}}
+\affil[1]{\small Laboratorium Hidrometeorologi \& Sains Data Geospasial, Proyek Pemodelan Presipitasi Kebumen}
+
+\date{\small\today}
+
+\begin{document}
+
+\maketitle
+
+% --- ABSTRACT & KEYWORDS BOX ---
+\begin{abstract}
+\noindent Ketersediaan data presipitasi kontinu tanpa celah (\textit{gap-free}) dengan resolusi spasio-temporal yang andal merupakan fondasi utama dalam pemodelan hidrologi Daerah Aliran Sungai (DAS), perancangan infrastruktur pengendali banjir, serta analisis variabilitas iklim jangka panjang di Kabupaten Kebumen, Jawa Tengah. Laporan ini menyajikan evaluasi komparatif multi-produk presipitasi harian sepanjang periode 2004 hingga Juli 2026 (total 8.248 hari kalender) yang mengintegrasikan 8 produk satelit dan reanalisis atmosfer: \texttt{CHIRPS\_RNL} (Reanalisis), \texttt{CHIRPS\_SAT} (Satelit murni), \texttt{CHIRPS\_FNL} (Final terkoreksi stasiun), \texttt{GSMaP} (JAXA), \texttt{IMERG} (NASA GPM Final V06/V07), \texttt{PERSIANN-CDR} (NOAA), \texttt{ERA5} (ECMWF Global), dan \texttt{ERA5\_LAND} (ECMWF Daratan 9 km). Analisis dilakukan melalui pendekatan simetris matriks inter-comparison antar-seluruh pasangan ($8 \times 8 = 28$ kombinasi unik), evaluasi poros benchmark \texttt{CHIRPS\_RNL} (kelengkapan 100\%), analisis kontingensi ambang batas deteksi hujan ($0.1 - 50.0\text{ mm/hari}$), dinamika tren akumulasi tahunan respon ENSO/IOD, kurva massa ganda homogenitas, klimatologi bulanan standar WMO ($\ge 20$ hari valid), serta uji signifikansi statistik non-parametrik (Wilcoxon Signed-Rank dan Mann-Whitney U). Hasil evaluasi menunjukkan derajat kesepakatan tertinggi antar-satelit diraih oleh pasangan \texttt{CHIRPS\_SAT} dan \texttt{IMERG} ($r = 0.810, \rho = 0.875, \text{MAE} = 4.15\text{ mm/hari}$), keselarasan model reanalisis atmosfer tertinggi pada \texttt{CHIRPS\_RNL} vs \texttt{ERA5\_LAND} ($\rho = 0.824, \text{RMSE} = 8.38\text{ mm/hari}$), dan deteksi kejadian hujan ekstrem terbaik dikonfirmasi oleh produk \texttt{NASA GPM IMERG} dan \texttt{ERA5\_LAND}. Rekomendasi terapan hidrologi disusun untuk memandu pemilihan produk input pemodelan hidrologi DAS dan sistem peringatan dini banjir.
+\end{abstract}
+
+\vspace{0.2cm}
+\noindent\textbf{\textit{Keywords:}} Curah Hujan Satelit, CHIRPS Reanalysis, NASA GPM IMERG, ECMWF ERA5-Land, Evaluasi Inter-Model All-to-All, Kling-Gupta Efficiency, Hidrologi Kebumen.
+
+\vspace{0.6cm}
+\hrule
+\vspace{0.6cm}
+
+% =============================================================================
+\section{Pendahuluan}
+% =============================================================================
+Karakterisasi presipitasi permukaan di wilayah Kabupaten Kebumen yang memiliki dinamika monsunal tropis dan topografi bervariasi (dari perbukitan utara hingga dataran pantai selatan) memerlukan data gridded berkualitas tinggi dan kontinu. 
+
+Penelitian ini memfokuskan evaluasi objektif antar-seluruh produk satelit penginderaan jauh (\textit{remote sensing}) dan reanalisis asimilasi data numerik atmosfer (\textit{atmospheric reanalysis}) pada periode harian kontinu **1 Januari 2004 hingga 31 Juli 2026** (8.248 hari pengamatan).
+
+% =============================================================================
+\section{Deskripsi Dataset 8 Produk Satelit \& Reanalisis (2004 -- 2026)}
+% =============================================================================
+Seluruh 8 produk memiliki cakupan waktu kontinu lengkap (100\% valid untuk 7 produk, dan 99.95\% valid untuk PERSIANN).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Parameter Statistik Deskriptif 8 Produk Presipitasi Harian di Kebumen (2004--2026)}
+\label{tab:deskriptif}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrrrr@{}}
+\toprule
+\textbf{Produk Presipitasi} & \textbf{Data Valid} & \textbf{Missing (\%)} & \textbf{Rerata (mm)} & \textbf{Std (mm)} & \textbf{Median} & \textbf{Maks (mm)} & \textbf{Hari Kering (\%)} \\
+\midrule
+\texttt{CHIRPS\_RNL}  & 8.248 & 0.00\% & 7.41 & 9.75  & 3.68 & 86.54  & 11.60\% \\
+\texttt{CHIRPS\_SAT}  & 8.248 & 0.00\% & 7.41 & 11.96 & 1.84 & 132.78 & 25.45\% \\
+\texttt{CHIRPS\_FNL}  & 8.248 & 0.00\% & 9.18 & 12.69 & 0.58 & 116.14 & 49.30\% \\
+\texttt{GSMaP}        & 8.248 & 0.00\% & 7.14 & 12.36 & 1.40 & 151.11 & 41.55\% \\
+\texttt{IMERG}        & 8.248 & 0.00\% & 8.43 & 16.05 & 1.26 & 199.32 & 34.75\% \\
+\texttt{PERSIANN}     & 8.244 & 0.05\% & 7.37 & 9.35  & 3.46 & 74.78  & 34.30\% \\
+\texttt{ERA5}         & 8.248 & 0.00\% & 7.05 & 11.28 & 3.35 & 165.70 & 6.95\% \\
+\texttt{ERA5\_LAND}   & 8.248 & 0.00\% & 7.08 & 11.40 & 3.32 & 184.22 & 5.80\% \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+% =============================================================================
+\section{Hasil Evaluasi Matriks Pasangan All-to-All ($8 \times 8$)}
+% =============================================================================
+Gambar \ref{fig:scatter_matrix} menyajikan matriks diagram pencar lengkap $8 \times 8$, Gambar \ref{fig:heatmaps} menyajikan korelasi Pearson dan Spearman, serta Gambar \ref{fig:error_matrix} menyajikan 4 metrik error.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{01_scatterplot_matrix_curah_hujan.png}
+    \caption{Scatter Plot Matrix Pasangan All-to-All ($8 \times 8 = 64$ Subplot) Curah Hujan Harian (2004--2026).}
+    \label{fig:scatter_matrix}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{02_heatmap_korelasi_pearson_spearman.png}
+    \caption{Matriks Heatmap Korelasi Parametrik Pearson ($r$) dan Non-Parametrik Spearman ($\rho$).}
+    \label{fig:heatmaps}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{02b_matriks_evaluasi_error_all_to_all.png}
+    \caption{Matriks 4-Panel Evaluasi Error Inter-Model: RMSE (mm/hari), MAE (mm/hari), Efisiensi KGE, dan PBIAS (\%).}
+    \label{fig:error_matrix}
+\end{figure}
+
+% =============================================================================
+\section{Evaluasi Benchmark CHIRPS Reanalisis (\texttt{CHIRPS\_RNL})}
+% =============================================================================
+Gambar \ref{fig:hexbin_chirps} menyajikan visualisasi kerapatan data logaritmik \textit{hexbin density} dari 7 produk terhadap acuan kontinu \texttt{CHIRPS\_RNL}, dan Gambar \ref{fig:bar_accuracy} membandingkan metrik akurasinya.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{03b_scatter_hexbin_vs_chirps_rnl.png}
+    \caption{Hexbin Density Scatter Plot vs Benchmark CHIRPS Reanalisis (\texttt{CHIRPS\_RNL}, 2004--2026).}
+    \label{fig:hexbin_chirps}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{04b_bar_akurasi_vs_chirps_rnl.png}
+    \caption{Perbandingan Multimetrik Akurasi \& Error terhadap Benchmark \texttt{CHIRPS\_RNL}.}
+    \label{fig:bar_accuracy}
+\end{figure}
+
+% =============================================================================
+\section{Evaluasi Kategorikal Deteksi Kejadian Hujan}
+% =============================================================================
+Gambar \ref{fig:contingency} menyajikan kurva metrik kontingensi: Critical Success Index (CSI), Probability of Detection (POD), False Alarm Ratio (FAR), dan Heidke Skill Score (HSS) pada berbagai ambang batas ($0.1 - 50.0\text{ mm/hari}$).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{05b_kategorikal_skill_vs_chirps_rnl.png}
+    \caption{Skor Kontingensi Deteksi Hujan Berdasarkan Ambang Batas Intensitas vs Benchmark \texttt{CHIRPS\_RNL}.}
+    \label{fig:contingency}
+\end{figure}
+
+% =============================================================================
+\section{Dinamika Temporal, Homogenitas \& Siklus Musiman}
+% =============================================================================
+Gambar \ref{fig:annual_trend}, \ref{fig:double_mass}, dan \ref{fig:boxplot} menyajikan respon jangka panjang terhadap anomali iklim global, homogenitas kurva massa ganda, serta diagram kotak sebaran bulanan.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{06_tren_akumulasi_hujan_tahunan_2004_2025.png}
+    \caption{Tren Akumulasi Curah Hujan Tahunan (2004--2026) dan Respon Siklus ENSO/IOD di Kebumen.}
+    \label{fig:annual_trend}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{08_kurva_massa_ganda_double_mass_curve.png}
+    \caption{Kurva Massa Ganda (\textit{Double-Mass Curve}) terhadap Benchmark \texttt{CHIRPS\_RNL} (2004--2026).}
+    \label{fig:double_mass}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{10_boxplot_variabilitas_bulanan.png}
+    \caption{Diagram Kotak (\textit{Boxplot}) Variabilitas Musiman Curah Hujan Bulanan (Bulan Valid $\ge 20$ Hari Observasi Sesuai Kaidah Standar WMO).}
+    \label{fig:boxplot}
+\end{figure}
+
+% =============================================================================
+\section{Uji Signifikansi Statistik Non-Parametrik}
+% =============================================================================
+Tabel \ref{tab:wilcoxon} menyajikan hasil uji Wilcoxon Signed-Rank pasangan hari basah ($\ge 0.1\text{ mm/hari}$) dengan format standar bebas nilai NaN.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Hasil Uji Wilcoxon Signed-Rank Pasangan Inter-Model (Hari Basah $\ge 0.1\text{ mm/hari}$)}
+\label{tab:wilcoxon}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lllrrrrr@{}}
+\toprule
+\textbf{Pasangan Inter-Comparison} & \textbf{Produk A} & \textbf{Produk B} & \textbf{Med A} & \textbf{Med B} & \textbf{Sampel ($N$)} & \textbf{$p$-value} & \textbf{Signifikan?} \\
+\midrule
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{CHIRPS\_SAT} & CHIRPS\_RNL & CHIRPS\_SAT & 4.70 & 2.65 & 7.442 & $1.15 \times 10^{-27}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{CHIRPS\_FNL} & CHIRPS\_RNL & CHIRPS\_FNL & 4.80 & 6.22 & 7.355 & $1.85 \times 10^{-17}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{GSMaP}      & CHIRPS\_RNL & GSMaP      & 4.70 & 2.62 & 7.446 & $4.88 \times 10^{-54}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{IMERG}      & CHIRPS\_RNL & IMERG      & 4.62 & 2.02 & 7.489 & $5.90 \times 10^{-42}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{PERSIANN}   & CHIRPS\_RNL & PERSIANN   & 4.70 & 4.80 & 7.434 & $3.10 \times 10^{-03}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{ERA5}       & CHIRPS\_RNL & ERA5       & 4.01 & 3.64 & 7.935 & $2.80 \times 10^{-18}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_RNL} $\leftrightarrow$ \texttt{ERA5\_LAND}  & CHIRPS\_RNL & ERA5\_LAND  & 3.98 & 3.64 & 7.962 & $4.90 \times 10^{-14}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{CHIRPS\_FNL} & CHIRPS\_SAT & CHIRPS\_FNL & 4.42 & 8.95 & 6.350 & $3.50 \times 10^{-46}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{GSMaP}      & CHIRPS\_SAT & GSMaP      & 3.74 & 3.65 & 6.715 & $5.10 \times 10^{-13}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{IMERG}      & CHIRPS\_SAT & IMERG      & 4.26 & 3.71 & 6.435 & $2.80 \times 10^{-02}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{PERSIANN}   & CHIRPS\_SAT & PERSIANN   & 3.76 & 6.10 & 6.690 & $4.80 \times 10^{-14}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{ERA5}       & CHIRPS\_SAT & ERA5       & 2.15 & 3.62 & 7.954 & $5.10 \times 10^{-19}$ & Ya ($p < 0.05$) \\
+\texttt{CHIRPS\_SAT} $\leftrightarrow$ \texttt{ERA5\_LAND}  & CHIRPS\_SAT & ERA5\_LAND  & 2.08 & 3.58 & 8.006 & $2.10 \times 10^{-21}$ & Ya ($p < 0.05$) \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+% =============================================================================
+\section{Kesimpulan \& Rekomendasi Terapan Hidrologi}
+% =============================================================================
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Konsensus Satelit Tertinggi}: Produk \texttt{CHIRPS\_SAT} dan \texttt{NASA GPM IMERG} menunjukkan derajat kesepakatan harian tertinggi ($r = 0.810, \rho = 0.875, \text{KGE} = 0.686$).
+    \item \textbf{Konsistensi Reanalisis Atmosfer}: Model \texttt{ERA5} dan \texttt{ERA5\_LAND} menunjukkan keselarasan rank yang sangat kuat terhadap \texttt{CHIRPS\_RNL} ($\rho = 0.824, \text{RMSE} = 8.38\text{ mm/hari}$), membuktikan keandalan dinamika atmosfer ECMWF di wilayah Kebumen.
+    \item \textbf{Rekomendasi Terapan DAS}:
+    \begin{itemize}
+        \item \textit{Pemodelan Debit DAS (HEC-HMS / SWAT)}: Gunakan \texttt{CHIRPS\_RNL} untuk kontinuitas waktu 2004–2026 bebas gap, atau \texttt{GPM IMERG} untuk resolusi presipitasi satelit harian terbaik.
+        \item \textit{Mitigasi Banjir \& Hujan Ekstrem}: Gunakan \texttt{GPM IMERG} dan \texttt{ERA5\_LAND} karena memiliki kemampuan deteksi hujan lebat (CSI \& HSS) paling unggul.
+    \end{itemize}
+\end{enumerate}
+
+\end{document}
