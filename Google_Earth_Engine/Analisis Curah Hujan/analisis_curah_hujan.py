@@ -41,9 +41,11 @@ kebumen_csv = os.path.join(data_dir, 'Data_Curah_Hujan_Kebumen.csv')
 df_kebumen_raw = pd.read_csv(kebumen_csv)
 df_kebumen_raw['Date'] = pd.to_datetime(df_kebumen_raw['datetime_utc'] if 'datetime_utc' in df_kebumen_raw.columns else df_kebumen_raw['Date'])
 sat_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND']
-df_daily_sat = df_kebumen_raw.set_index('Date')[sat_cols].copy()
+all_kebumen_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']
+df_daily_sat = df_kebumen_raw.set_index('Date')[[c for c in all_kebumen_cols if c in df_kebumen_raw.columns]].copy()
 for c in ['ERA5', 'ERA5_LAND']:
-    df_daily_sat[c] = df_daily_sat[c].clip(lower=0.0)
+    if c in df_daily_sat.columns:
+        df_daily_sat[c] = df_daily_sat[c].clip(lower=0.0)
 
 print(f"Dataset Harian Satelit & Reanalisis (2004 s.d. 2026): {len(df_daily_sat):,} hari")
 
@@ -74,9 +76,23 @@ df_era5_hourly = df_era5_h.set_index('Date')[['temperature', 'humidity', 'dewpoi
     'temperature': 'temp_era5', 'humidity': 'rh_era5', 'dewpoint': 'dew_era5', 'rainrate': 'rain_era5', 'pressure': 'pres_era5'
 })
 
+# 5. ERA5-Land Hourly
+df_land_h = pd.read_csv(os.path.join(data_dir, 'ERA5_Land_Standard_Units_TimeSeries_UTC_WMO.csv'), usecols=['datetime_utc', 'temperature_2m_C', 'humidity_2m_pct', 'surface_pressure_hPa', 'total_precipitation_hourly_mm'])
+df_land_h['Date'] = pd.to_datetime(df_land_h['datetime_utc'])
+df_land_hourly = df_land_h.set_index('Date')[['temperature_2m_C', 'humidity_2m_pct', 'surface_pressure_hPa', 'total_precipitation_hourly_mm']].rename(columns={
+    'temperature_2m_C': 'temp_era5_land', 'humidity_2m_pct': 'rh_era5_land', 'surface_pressure_hPa': 'pres_era5_land', 'total_precipitation_hourly_mm': 'rain_era5_land'
+})
+
+# 6. Oya Hourly
+df_oya_h = pd.read_csv(os.path.join(data_dir, 'Rainfall_Oya_TimeSeries_UNIX.csv'))
+df_oya_h['Date'] = pd.to_datetime(df_oya_h['datetime_utc'])
+df_oya_hourly = df_oya_h.set_index('Date')[['precipitation_mmhr']].resample('1h').mean().rename(columns={'precipitation_mmhr': 'rain_oya'})
+
 # Merge master hourly
-df_hourly = df_aws.join(df_gsmap_h, how='inner').join(df_imerg_hourly, how='inner').join(df_era5_hourly, how='inner')
-df_hourly['rain_era5'] = df_hourly['rain_era5'].clip(lower=0.0)
+df_hourly = df_aws.join(df_gsmap_h, how='inner').join(df_imerg_hourly, how='inner').join(df_era5_hourly, how='inner').join(df_land_hourly, how='left').join(df_oya_hourly, how='left')
+for c in ['rain_era5', 'rain_era5_land']:
+    if c in df_hourly.columns:
+        df_hourly[c] = df_hourly[c].clip(lower=0.0)
 print(f"Dataset Jam-jaman Overlap Sinkron: {len(df_hourly):,} jam (1 Jan 2025 s.d. 17 Jul 2026)")
 
 # -------------------------------------------------------------
@@ -106,13 +122,34 @@ def calc_metrics(obs, sim):
     rho, _ = stats.spearmanr(o, s)
     rmse = np.sqrt(np.mean((s - o)**2))
     mae = np.mean(np.abs(s - o))
+    mbe = np.mean(s - o)
     pbias = (np.sum(s - o) / np.sum(o)) * 100 if np.sum(o) != 0 else 0.0
+    
+    ss_res = np.sum((o - s)**2)
+    ss_tot = np.sum((o - np.mean(o))**2)
+    nse = 1 - (ss_res / ss_tot) if ss_tot != 0 else np.nan
+    
     std_o, std_s = np.std(o), np.std(s)
     mean_o, mean_s = np.mean(o), np.mean(s)
     alpha = std_s / std_o if std_o != 0 else 1.0
     beta = mean_s / mean_o if mean_o != 0 else 1.0
     kge = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
-    return {'N': len(o), 'Pearson_r': r, 'Spearman_rho': rho, 'RMSE': rmse, 'MAE': mae, 'PBIAS': pbias, 'KGE': kge}
+    
+    denom_ioa = np.sum((np.abs(s - np.mean(o)) + np.abs(o - np.mean(o)))**2)
+    ioa = 1 - (ss_res / denom_ioa) if denom_ioa != 0 else 0.0
+    
+    return {
+        'N': len(o),
+        'Pearson_r': r,
+        'Spearman_rho': rho,
+        'RMSE': rmse,
+        'MAE': mae,
+        'MBE': mbe,
+        'PBIAS': pbias,
+        'NSE': nse,
+        'KGE': kge,
+        'IOA': ioa
+    }
 
 # 1. Evaluasi Harian: 8 Satelit Kebumen vs AWS IoT
 daily_eval_list = []
@@ -129,12 +166,21 @@ print("✅ ringkasan_evaluasi_harian_8satelit_vs_aws.csv berhasil dibuat.")
 
 # 2. Evaluasi Jam-jaman vs AWS IoT
 hourly_eval_list = []
-for prod, name in [('rain_gsmap', 'GSMaP'), ('rain_imerg', 'IMERG'), ('rain_era5', 'ERA5')]:
-    m = calc_metrics(df_hourly['rain_aws'].values, df_hourly[prod].values)
-    m['Produk'] = name
-    m['Skala'] = 'Per Jam (Hourly)'
-    m['Satuan'] = 'mm/jam'
-    hourly_eval_list.append(m)
+multiscale_pairs = [
+    ('rain_imerg', 'IMERG', '#d62728'),
+    ('rain_gsmap', 'GSMaP', '#ff7f0e'),
+    ('rain_era5', 'ERA5', '#8c564b'),
+    ('rain_era5_land', 'ERA5_LAND', '#e377c2'),
+    ('rain_oya', 'OYA', '#2ca02c')
+]
+
+for prod, name, col_c in multiscale_pairs:
+    if prod in df_hourly.columns:
+        m = calc_metrics(df_hourly['rain_aws'].values, df_hourly[prod].values)
+        m['Produk'] = name
+        m['Skala'] = 'Per Jam (Hourly)'
+        m['Satuan'] = 'mm/jam'
+        hourly_eval_list.append(m)
 
 df_eval_hourly = pd.DataFrame(hourly_eval_list).sort_values(by='Pearson_r', ascending=False)
 df_eval_hourly.to_csv(os.path.join(out_dir, 'ringkasan_evaluasi_perjam_vs_aws.csv'), index=False)
@@ -142,20 +188,21 @@ print("✅ ringkasan_evaluasi_perjam_vs_aws.csv berhasil dibuat.")
 
 # 3. Multi-Temporal Comparison Table (Hourly vs Daily)
 multiscale_list = []
-for prod, sat_harian_name in [('rain_imerg', 'IMERG'), ('rain_gsmap', 'GSMaP'), ('rain_era5', 'ERA5')]:
-    m_h = calc_metrics(df_hourly['rain_aws'].values, df_hourly[prod].values)
-    m_d = calc_metrics(df_daily_master['rain_aws'].values, df_daily_master[sat_harian_name].values)
-    multiscale_list.append({
-        'Produk': sat_harian_name,
-        'r_Hourly': m_h['Pearson_r'],
-        'r_Daily': m_d['Pearson_r'],
-        'rho_Hourly': m_h['Spearman_rho'],
-        'rho_Daily': m_d['Spearman_rho'],
-        'MAE_Hourly_mm_hr': m_h['MAE'],
-        'MAE_Daily_mm_day': m_d['MAE'],
-        'KGE_Hourly': m_h['KGE'],
-        'KGE_Daily': m_d['KGE']
-    })
+for prod, sat_harian_name, col_c in multiscale_pairs:
+    if prod in df_hourly.columns and sat_harian_name in df_daily_master.columns:
+        m_h = calc_metrics(df_hourly['rain_aws'].values, df_hourly[prod].values)
+        m_d = calc_metrics(df_daily_master['rain_aws'].values, df_daily_master[sat_harian_name].values)
+        multiscale_list.append({
+            'Produk': sat_harian_name,
+            'r_Hourly': m_h['Pearson_r'],
+            'r_Daily': m_d['Pearson_r'],
+            'rho_Hourly': m_h['Spearman_rho'],
+            'rho_Daily': m_d['Spearman_rho'],
+            'MAE_Hourly_mm_hr': m_h['MAE'],
+            'MAE_Daily_mm_day': m_d['MAE'],
+            'KGE_Hourly': m_h['KGE'],
+            'KGE_Daily': m_d['KGE']
+        })
 df_multiscale = pd.DataFrame(multiscale_list)
 df_multiscale.to_csv(os.path.join(out_dir, 'ringkasan_multi_skala_jam_vs_hari.csv'), index=False)
 print("✅ ringkasan_multi_skala_jam_vs_hari.csv berhasil dibuat.")
@@ -225,12 +272,13 @@ fig.suptitle('Diagram Pencar Hexbin Density 8 Produk Satelit & Reanalisis Kebume
 save_fig('02_scatter_hexbin_8satelit_vs_aws_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 03: PERBANDINGAN MULTI-SKALA (JAM VS HARI)
+# PLOT 03: PERBANDINGAN MULTI-SKALA KONSISTEN (JAM VS HARI - 5 PRODUK)
 # -------------------------------------------------------------
-fig, axes = plt.subplots(2, 3, figsize=(18, 11), dpi=150)
+num_pairs = len(multiscale_pairs)
+fig, axes = plt.subplots(2, num_pairs, figsize=(4.2 * num_pairs, 9), dpi=150)
 
-# Baris 1: Per Jam
-for idx, (prod, name, col_c) in enumerate([('rain_imerg', 'IMERG', '#e74c3c'), ('rain_gsmap', 'GSMaP', '#27ae60'), ('rain_era5', 'ERA5', '#2980b9')]):
+# Baris 1: Skala 1-Jam (Hourly)
+for idx, (prod, name, col_c) in enumerate(multiscale_pairs):
     ax = axes[0, idx]
     x = df_hourly['rain_aws']
     y = df_hourly[prod]
@@ -243,22 +291,22 @@ for idx, (prod, name, col_c) in enumerate([('rain_imerg', 'IMERG', '#e74c3c'), (
     else:
         x_s, y_s = xm, ym
         
-    ax.scatter(x_s, y_s, color=col_c, alpha=0.35, s=8)
+    ax.scatter(x_s, y_s, color=col_c, alpha=0.35, s=10, edgecolors='none')
     ax.plot([0, 25], [0, 25], 'k--', lw=1.2, label='1:1 Line')
     slope, intercept, r_val, _, _ = stats.linregress(xm, ym)
-    ax.plot([0, 25], [slope*0 + intercept, slope*25 + intercept], 'b-', lw=1.5, label=f'Fit (r={r_val:.3f})')
-    ax.set_title(f'1-JAM: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/jam)', fontweight='bold')
-    ax.set_xlabel('AWS IoT Jerukagung (mm/jam)')
-    ax.set_ylabel(f'{name} (mm/jam)')
+    ax.plot([0, 25], [slope*0 + intercept, slope*25 + intercept], 'b-', lw=1.6, label=f'Fit (r={r_val:.3f})')
+    ax.set_title(f'1-JAM: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/jam)', fontweight='bold', fontsize=10.5)
+    ax.set_xlabel('AWS IoT Jerukagung (mm/jam)', fontsize=9.5)
+    ax.set_ylabel(f'{name} (mm/jam)', fontsize=9.5)
     ax.set_xlim(0, 20)
     ax.set_ylim(0, 20)
-    ax.legend(loc='upper left')
+    ax.legend(loc='upper left', fontsize=8)
 
-# Baris 2: Per Hari (Daily)
-for idx, (prod, name, col_c) in enumerate([('IMERG', 'IMERG', '#e74c3c'), ('GSMaP', 'GSMaP', '#27ae60'), ('ERA5', 'ERA5', '#2980b9')]):
+# Baris 2: Skala 1-Hari (Daily)
+for idx, (prod, name, col_c) in enumerate(multiscale_pairs):
     ax = axes[1, idx]
     x = df_daily_master['rain_aws']
-    y = df_daily_master[prod]
+    y = df_daily_master[name]
     mask = ~x.isna() & ~y.isna()
     xm, ym = x[mask], y[mask]
     
@@ -266,20 +314,20 @@ for idx, (prod, name, col_c) in enumerate([('IMERG', 'IMERG', '#e74c3c'), ('GSMa
     ax.plot([0, 100], [0, 100], 'k--', lw=1.2, label='1:1 Line')
     slope, intercept, r_val, _, _ = stats.linregress(xm, ym)
     ax.plot([0, 100], [slope*0 + intercept, slope*100 + intercept], 'b-', lw=1.8, label=f'Fit (r={r_val:.3f})')
-    ax.set_title(f'1-HARI: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/hari)', fontweight='bold')
-    ax.set_xlabel('AWS IoT Jerukagung (mm/hari)')
-    ax.set_ylabel(f'{name} (mm/hari)')
+    ax.set_title(f'1-HARI: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/hari)', fontweight='bold', fontsize=10.5)
+    ax.set_xlabel('AWS IoT Jerukagung (mm/hari)', fontsize=9.5)
+    ax.set_ylabel(f'{name} (mm/hari)', fontsize=9.5)
     ax.set_xlim(0, 80)
     ax.set_ylim(0, 80)
-    ax.legend(loc='upper left')
+    ax.legend(loc='upper left', fontsize=8)
 
 fig.suptitle('Evaluasi Multi-Temporal Presipitasi: Skala 1-Jam (Atas) vs Skala 1-Hari (Bawah)', fontsize=15, fontweight='bold', y=0.98)
 save_fig('03_perbandingan_scatter_jam_vs_hari.png')
 
 # -------------------------------------------------------------
-# PLOT 04: LONJAKAN AKURASI JAM VS HARI (BARCHART)
+# PLOT 04: LONJAKAN AKURASI JAM VS HARI (SEMUA 5 PRODUK)
 # -------------------------------------------------------------
-fig, axes = plt.subplots(1, 2, figsize=(16, 6), dpi=150)
+fig, axes = plt.subplots(1, 2, figsize=(18, 6), dpi=150)
 labels = df_multiscale['Produk'].tolist()
 x = np.arange(len(labels))
 width = 0.35
@@ -287,73 +335,94 @@ width = 0.35
 # Pearson r
 axes[0].bar(x - width/2, df_multiscale['r_Hourly'], width, label='Skala 1-Jam (Hourly)', color='#3498db', alpha=0.85)
 axes[0].bar(x + width/2, df_multiscale['r_Daily'], width, label='Skala 1-Hari (Daily)', color='#2ecc71', alpha=0.85)
-axes[0].set_title('(A) Peningkatan Korelasi Pearson (r)', fontweight='bold')
+axes[0].set_title('(A) Peningkatan Korelasi Pearson (r) Jam vs Hari', fontweight='bold')
 axes[0].set_xticks(x)
-axes[0].set_xticklabels(labels)
+axes[0].set_xticklabels(labels, fontweight='bold')
 axes[0].set_ylabel('Pearson Correlation (r)')
-axes[0].set_ylim(0, 0.8)
+axes[0].set_ylim(0, 0.85)
 for i in range(len(labels)):
     axes[0].text(x[i] - width/2, df_multiscale['r_Hourly'][i] + 0.02, f"{df_multiscale['r_Hourly'][i]:.3f}", ha='center', fontsize=9)
     axes[0].text(x[i] + width/2, df_multiscale['r_Daily'][i] + 0.02, f"{df_multiscale['r_Daily'][i]:.3f}", ha='center', fontsize=9, fontweight='bold')
-axes[0].legend()
+axes[0].legend(loc='upper left')
 
 # Spearman rho
 axes[1].bar(x - width/2, df_multiscale['rho_Hourly'], width, label='Skala 1-Jam (Hourly)', color='#e67e22', alpha=0.85)
 axes[1].bar(x + width/2, df_multiscale['rho_Daily'], width, label='Skala 1-Hari (Daily)', color='#9b59b6', alpha=0.85)
-axes[1].set_title('(B) Peningkatan Korelasi Spearman Rank (ρ)', fontweight='bold')
+axes[1].set_title('(B) Peningkatan Korelasi Spearman Rank (ρ) Jam vs Hari', fontweight='bold')
 axes[1].set_xticks(x)
-axes[1].set_xticklabels(labels)
+axes[1].set_xticklabels(labels, fontweight='bold')
 axes[1].set_ylabel('Spearman Rank (ρ)')
-axes[1].set_ylim(0, 0.8)
+axes[1].set_ylim(0, 0.85)
 for i in range(len(labels)):
     axes[1].text(x[i] - width/2, df_multiscale['rho_Hourly'][i] + 0.02, f"{df_multiscale['rho_Hourly'][i]:.3f}", ha='center', fontsize=9)
     axes[1].text(x[i] + width/2, df_multiscale['rho_Daily'][i] + 0.02, f"{df_multiscale['rho_Daily'][i]:.3f}", ha='center', fontsize=9, fontweight='bold')
-axes[1].legend()
+axes[1].legend(loc='upper left')
 
-fig.suptitle('Lonjakan Akurasi Presipitasi Satelit Saat Diagregasikan dari Jam-jaman ke Harian', fontsize=15, fontweight='bold', y=0.98)
+fig.suptitle('Lonjakan Koefisien Korelasi Parametrik & Non-Parametrik Saat Data Diagregasikan ke Skala Harian', fontsize=15, fontweight='bold', y=0.98)
 save_fig('04_bar_lonjakan_akurasi_jam_vs_hari.png')
 
 # -------------------------------------------------------------
-# PLOT 05: SIKLUS DIURNAL 24-JAM CUACA & HUJAN
+# PLOT 05: SIKLUS DIURNAL 24-JAM CUACA & HUJAN (SEMUA SUMBER DATA)
 # -------------------------------------------------------------
 df_hourly['hour_local'] = (df_hourly.index.hour + 7) % 24  # WIB
-diurnal = df_hourly.groupby('hour_local').mean()
+num_cols = [c for c in df_hourly.columns if df_hourly[c].dtype in [np.float64, np.float32, np.int64, np.int32]]
+diurnal = df_hourly.groupby('hour_local')[num_cols].mean()
 
-fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=150)
+fig, axes = plt.subplots(2, 2, figsize=(18, 12), dpi=150)
 hours = np.arange(24)
 
-# Suhu
+# (A) Suhu
 axes[0, 0].plot(hours, diurnal['temp_aws'], 'ro-', lw=2.2, label='AWS IoT Jerukagung')
-axes[0, 0].plot(hours, diurnal['temp_era5'], 'bs--', lw=2.2, label='ECMWF ERA5')
+if 'temp_era5' in diurnal.columns:
+    axes[0, 0].plot(hours, diurnal['temp_era5'], 'bs--', lw=1.8, label='ECMWF ERA5 Global')
+if 'temp_era5_land' in diurnal.columns:
+    axes[0, 0].plot(hours, diurnal['temp_era5_land'], color='#e377c2', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
 axes[0, 0].set_title('(A) Siklus Diurnal Suhu Udara Permukaan (°C)', fontweight='bold')
 axes[0, 0].set_xlabel('Jam Lokal (WIB)')
+axes[0, 0].set_ylabel('Suhu (°C)')
 axes[0, 0].set_xticks(hours)
 axes[0, 0].legend()
 
-# RH
+# (B) Kelembapan Relatif (RH)
 axes[0, 1].plot(hours, diurnal['rh_aws'], 'go-', lw=2.2, label='AWS IoT Jerukagung')
-axes[0, 1].plot(hours, diurnal['rh_era5'], 'ms--', lw=2.2, label='ECMWF ERA5')
+if 'rh_era5' in diurnal.columns:
+    axes[0, 1].plot(hours, diurnal['rh_era5'], 'ms--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rh_era5_land' in diurnal.columns:
+    axes[0, 1].plot(hours, diurnal['rh_era5_land'], color='#8c564b', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
 axes[0, 1].set_title('(B) Siklus Diurnal Kelembaban Relatif (RH %)', fontweight='bold')
 axes[0, 1].set_xlabel('Jam Lokal (WIB)')
+axes[0, 1].set_ylabel('RH (%)')
 axes[0, 1].set_xticks(hours)
 axes[0, 1].legend()
 
-# Presipitasi
-axes[1, 0].plot(hours, diurnal['rain_aws'], 'ko-', lw=2.2, label='AWS IoT Jerukagung')
-axes[1, 0].plot(hours, diurnal['rain_imerg'], 'rd--', lw=2.0, label='NASA GPM IMERG')
-axes[1, 0].plot(hours, diurnal['rain_gsmap'], 'g^--', lw=2.0, label='JAXA GSMaP')
-axes[1, 0].plot(hours, diurnal['rain_era5'], 'b*--', lw=2.0, label='ECMWF ERA5')
-axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Sore Hari 15:00–18:00 WIB)', fontweight='bold')
-axes[1, 0].set_xlabel('Jam Lokal (WIB)')
-axes[1, 0].set_ylabel('Intensitas (mm/jam)')
-axes[1, 0].set_xticks(hours)
-axes[1, 0].legend()
+# (C) Presipitasi Jam-jaman (Semua 6 Dataset Jam-jaman)
+axes[1, 0].plot(hours, diurnal['rain_aws'], 'ko-', lw=2.5, label='AWS IoT Jerukagung (Ground Truth)')
+if 'rain_imerg' in diurnal.columns:
+    axes[1, 0].plot(hours, diurnal['rain_imerg'], color='#d62728', marker='d', linestyle='--', lw=1.8, label='NASA GPM IMERG')
+if 'rain_gsmap' in diurnal.columns:
+    axes[1, 0].plot(hours, diurnal['rain_gsmap'], color='#ff7f0e', marker='^', linestyle='--', lw=1.8, label='JAXA GSMaP')
+if 'rain_era5' in diurnal.columns:
+    axes[1, 0].plot(hours, diurnal['rain_era5'], color='#8c564b', marker='*', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rain_era5_land' in diurnal.columns:
+    axes[1, 0].plot(hours, diurnal['rain_era5_land'], color='#e377c2', marker='x', linestyle='--', lw=1.8, label='ECMWF ERA5-Land')
+if 'rain_oya' in diurnal.columns:
+    axes[1, 0].plot(hours, diurnal['rain_oya'], color='#2ca02c', marker='s', linestyle=':', lw=1.8, label='Pos Hujan Oya (Manual)')
 
-# Tekanan
-axes[1, 1].plot(hours, diurnal['pres_aws'], 'co-', lw=2.2, label='AWS IoT Jerukagung')
-axes[1, 1].plot(hours, diurnal['pres_era5'], 'ys--', lw=2.2, label='ECMWF ERA5')
+axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Konvektif Sore 15:00–18:00 WIB)', fontweight='bold')
+axes[1, 0].set_xlabel('Jam Lokal (WIB)')
+axes[1, 0].set_ylabel('Intensitas Rata-Rata (mm/jam)')
+axes[1, 0].set_xticks(hours)
+axes[1, 0].legend(ncol=2, fontsize=8.5)
+
+# (D) Tekanan Permukaan
+axes[1, 1].plot(hours, diurnal['pres_aws'], color='#008080', marker='o', lw=2.2, label='AWS IoT Jerukagung')
+if 'pres_era5' in diurnal.columns:
+    axes[1, 1].plot(hours, diurnal['pres_era5'], color='#d95f02', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'pres_era5_land' in diurnal.columns:
+    axes[1, 1].plot(hours, diurnal['pres_era5_land'], color='#7570b3', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
 axes[1, 1].set_title('(D) Pasang Surut Atmosferik Semidiurnal Tekanan (hPa)', fontweight='bold')
 axes[1, 1].set_xlabel('Jam Lokal (WIB)')
+axes[1, 1].set_ylabel('Tekanan (hPa)')
 axes[1, 1].set_xticks(hours)
 axes[1, 1].legend()
 
@@ -361,10 +430,20 @@ fig.suptitle('Karakteristik Siklus Diurnal 24-Jam Cuaca & Hujan di Stasiun Jeruk
 save_fig('05_siklus_diurnal_24jam_cuaca_hujan.png')
 
 # -------------------------------------------------------------
-# PLOT 06: SKOR DETEKSI KONTINGENSI DETEKSI HUJAN HARIAN
+# PLOT 06: SKOR DETEKSI KONTINGENSI DETEKSI HUJAN HARIAN (SEMUA 8 PRODUK)
 # -------------------------------------------------------------
 thresholds_d = [0.1, 1.0, 5.0, 10.0, 20.0, 50.0]
-contingency_d = {col: {'CSI': [], 'POD': [], 'FAR': [], 'HSS': []} for col in ['IMERG', 'GSMaP', 'CHIRPS_SAT', 'ERA5']}
+sat_colors_8 = {
+    'CHIRPS_RNL': '#1f77b4',
+    'CHIRPS_SAT': '#3498db',
+    'CHIRPS_FNL': '#2ca02c',
+    'GSMaP': '#ff7f0e',
+    'IMERG': '#d62728',
+    'PERSIANN': '#9467bd',
+    'ERA5': '#8c564b',
+    'ERA5_LAND': '#e377c2'
+}
+contingency_d = {col: {'CSI': [], 'POD': [], 'FAR': [], 'HSS': []} for col in sat_cols}
 
 for th in thresholds_d:
     obs_rain = (df_daily_master['rain_aws'] >= th)
@@ -389,275 +468,188 @@ for th in thresholds_d:
         contingency_d[col]['FAR'].append(far)
         contingency_d[col]['HSS'].append(hss)
 
-fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=150)
+fig, axes = plt.subplots(2, 2, figsize=(18, 12), dpi=150)
 th_labels = [f'{t} mm' for t in thresholds_d]
-colors_map = {'IMERG': '#e74c3c', 'GSMaP': '#27ae60', 'CHIRPS_SAT': '#f39c12', 'ERA5': '#2980b9'}
 
 for col in contingency_d.keys():
-    c = colors_map[col]
-    axes[0, 0].plot(th_labels, contingency_d[col]['CSI'], marker='o', lw=2.2, label=col, color=c)
-    axes[0, 1].plot(th_labels, contingency_d[col]['POD'], marker='s', lw=2.2, label=col, color=c)
-    axes[1, 0].plot(th_labels, contingency_d[col]['FAR'], marker='^', lw=2.2, label=col, color=c)
-    axes[1, 1].plot(th_labels, contingency_d[col]['HSS'], marker='d', lw=2.2, label=col, color=c)
+    c = sat_colors_8.get(col, '#333333')
+    axes[0, 0].plot(th_labels, contingency_d[col]['CSI'], marker='o', lw=1.8, label=col, color=c)
+    axes[0, 1].plot(th_labels, contingency_d[col]['POD'], marker='s', lw=1.8, label=col, color=c)
+    axes[1, 0].plot(th_labels, contingency_d[col]['FAR'], marker='^', lw=1.8, label=col, color=c)
+    axes[1, 1].plot(th_labels, contingency_d[col]['HSS'], marker='d', lw=1.8, label=col, color=c)
 
 axes[0, 0].set_title('(A) Critical Success Index (CSI) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
 axes[0, 0].set_ylim(0, 1.0)
-axes[0, 0].legend()
+axes[0, 0].legend(ncol=2, fontsize=8.5)
 
 axes[0, 1].set_title('(B) Probability of Detection (POD) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
 axes[0, 1].set_ylim(0, 1.0)
-axes[0, 1].legend()
+axes[0, 1].legend(ncol=2, fontsize=8.5)
 
 axes[1, 0].set_title('(C) False Alarm Ratio (FAR) ↓ Lebih Rendah Lebih Baik', fontweight='bold')
 axes[1, 0].set_ylim(0, 1.0)
-axes[1, 0].legend()
+axes[1, 0].legend(ncol=2, fontsize=8.5)
 
 axes[1, 1].set_title('(D) Heidke Skill Score (HSS) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
 axes[1, 1].set_ylim(0, 1.0)
-axes[1, 1].legend()
+axes[1, 1].legend(ncol=2, fontsize=8.5)
 
-fig.suptitle('Skor Deteksi Kontingensi Kejadian Hujan Harian Berdasarkan Ambang Batas vs AWS IoT', fontsize=15, fontweight='bold', y=0.98)
+fig.suptitle('Skor Deteksi Kontingensi Kejadian Hujan Harian Berdasarkan Ambang Batas: 8 Produk vs AWS IoT', fontsize=15, fontweight='bold', y=0.98)
 save_fig('06_skor_kontingensi_deteksi_hujan_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 07: DOUBLE MASS CURVE KUMULATIF HARIAN
+# PLOT 07: DOUBLE MASS CURVE KUMULATIF HARIAN (SEMUA 8 PRODUK)
 # -------------------------------------------------------------
 fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
 cum_aws = df_daily_master['rain_aws'].cumsum()
 
-for sat, color in [('IMERG', '#e74c3c'), ('GSMaP', '#27ae60'), ('CHIRPS_RNL', '#8e44ad'), ('ERA5', '#2980b9'), ('CHIRPS_SAT', '#f39c12')]:
+for sat in sat_cols:
     cum_sat = df_daily_master[sat].cumsum()
-    ax.plot(cum_aws, cum_sat, label=f'{sat}', color=color, lw=2.2)
+    c = sat_colors_8.get(sat, '#333333')
+    ax.plot(cum_aws, cum_sat, label=f'{sat}', color=c, lw=2.0)
 
 ax.plot([0, cum_aws.max()], [0, cum_aws.max()], 'k--', label='Ideal 1:1 Line', lw=1.5)
-ax.set_title('Kurva Massa Ganda (Double-Mass Curve) Akumulasi Hujan Harian vs AWS IoT', fontsize=14, fontweight='bold')
+ax.set_title('Kurva Massa Ganda (Double-Mass Curve) Akumulasi Hujan Harian: 8 Produk vs AWS IoT', fontsize=14, fontweight='bold')
 ax.set_xlabel('Akumulasi Curah Hujan AWS IoT Jerukagung (mm)')
 ax.set_ylabel('Akumulasi Curah Hujan Satelit / Reanalisis (mm)')
-ax.legend()
+ax.legend(loc='upper left', ncol=2, fontsize=9)
 save_fig('07_kurva_massa_ganda_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 08: HEATMAP KORELASI SEMUA SUMBER DATA
+# PLOT 08: HEATMAP KORELASI RANK SPEARMAN
 # -------------------------------------------------------------
-eval_all_cols = ['rain_aws'] + sat_cols
-corr_matrix_d = df_daily_master[eval_all_cols].corr(method='spearman')
+eval_all_cols = ['rain_aws'] + [c for c in all_kebumen_cols if c in df_daily_master.columns]
+labels_map = {
+    'rain_aws': 'AWS_IoT',
+    'CHIRPS_RNL': 'CHIRPS_RNL',
+    'CHIRPS_SAT': 'CHIRPS_SAT',
+    'CHIRPS_FNL': 'CHIRPS_FNL',
+    'GSMaP': 'GSMaP',
+    'IMERG': 'IMERG',
+    'PERSIANN': 'PERSIANN',
+    'ERA5': 'ERA5',
+    'ERA5_LAND': 'ERA5_LAND',
+    'OYA': 'Pos_OYA'
+}
+corr_matrix_d = df_daily_master[eval_all_cols].rename(columns=labels_map).corr(method='spearman')
 
 fig, ax = plt.subplots(figsize=(12, 10), dpi=150)
 sns.heatmap(corr_matrix_d, annot=True, fmt='.3f', cmap='YlGnBu', vmin=0.4, vmax=1.0, ax=ax, linewidths=0.5)
-ax.set_title('Matriks Korelasi Rank Spearman Harian: 8 Satelit Kebumen & AWS IoT', fontsize=14, fontweight='bold')
+ax.set_title('Matriks Korelasi Rank Spearman Harian: Seluruh Dataset Presipitasi & AWS IoT', fontsize=14, fontweight='bold')
 save_fig('08_heatmap_korelasi_harian_semua_produk.png')
 
+# -------------------------------------------------------------
+# PLOT 09: MULTI-PANEL HEATMAP INTER-MODEL (r, rho, RMSE, MAE, KGE, NSE)
+# -------------------------------------------------------------
+n_m = len(eval_all_cols)
+mat_r = np.zeros((n_m, n_m))
+mat_rho = np.zeros((n_m, n_m))
+mat_rmse = np.zeros((n_m, n_m))
+mat_mae = np.zeros((n_m, n_m))
+mat_kge = np.zeros((n_m, n_m))
+mat_nse = np.zeros((n_m, n_m))
+
+for i, col1 in enumerate(eval_all_cols):
+    for j, col2 in enumerate(eval_all_cols):
+        x = df_daily_master[col1].values
+        y = df_daily_master[col2].values
+        mask = ~np.isnan(x) & ~np.isnan(y)
+        x_m, y_m = x[mask], y[mask]
+        
+        r, _ = stats.pearsonr(x_m, y_m)
+        rho, _ = stats.spearmanr(x_m, y_m)
+        mat_r[i, j] = r
+        mat_rho[i, j] = rho
+        mat_rmse[i, j] = np.sqrt(np.mean((y_m - x_m)**2))
+        mat_mae[i, j] = np.mean(np.abs(y_m - x_m))
+        
+        ss_res = np.sum((x_m - y_m)**2)
+        ss_tot = np.sum((x_m - np.mean(x_m))**2)
+        mat_nse[i, j] = 1 - (ss_res / ss_tot) if ss_tot != 0 else np.nan
+        
+        std_o, std_s = np.std(x_m), np.std(y_m)
+        mean_o, mean_s = np.mean(x_m), np.mean(y_m)
+        alpha = std_s / std_o if std_o != 0 else 1.0
+        beta = mean_s / mean_o if mean_o != 0 else 1.0
+        mat_kge[i, j] = 1 - np.sqrt((r - 1)**2 + (alpha - 1)**2 + (beta - 1)**2)
+
+plot_labels = [labels_map.get(c, c) for c in eval_all_cols]
+fig, axes = plt.subplots(2, 3, figsize=(24, 15), dpi=150)
+
+# (A) Pearson r
+sns.heatmap(pd.DataFrame(mat_r, index=plot_labels, columns=plot_labels), annot=True, fmt='.2f', cmap='YlGnBu', vmin=0.3, vmax=1.0, ax=axes[0, 0], cbar_kws={'label': 'Pearson r'})
+axes[0, 0].set_title('(A) Matriks Korelasi Pearson (r)', fontweight='bold', fontsize=12)
+
+# (B) Spearman rho
+sns.heatmap(pd.DataFrame(mat_rho, index=plot_labels, columns=plot_labels), annot=True, fmt='.2f', cmap='viridis', vmin=0.4, vmax=1.0, ax=axes[0, 1], cbar_kws={'label': 'Spearman ρ'})
+axes[0, 1].set_title('(B) Matriks Korelasi Spearman Rank (ρ)', fontweight='bold', fontsize=12)
+
+# (C) RMSE
+sns.heatmap(pd.DataFrame(mat_rmse, index=plot_labels, columns=plot_labels), annot=True, fmt='.1f', cmap='magma_r', ax=axes[0, 2], cbar_kws={'label': 'RMSE (mm/hari)'})
+axes[0, 2].set_title('(C) Root Mean Square Error (RMSE mm/hari) ↓', fontweight='bold', fontsize=12)
+
+# (D) MAE
+sns.heatmap(pd.DataFrame(mat_mae, index=plot_labels, columns=plot_labels), annot=True, fmt='.1f', cmap='flare_r', ax=axes[1, 0], cbar_kws={'label': 'MAE (mm/hari)'})
+axes[1, 0].set_title('(D) Mean Absolute Error (MAE mm/hari) ↓', fontweight='bold', fontsize=12)
+
+# (E) Kling-Gupta Efficiency (KGE)
+sns.heatmap(pd.DataFrame(mat_kge, index=plot_labels, columns=plot_labels), annot=True, fmt='.2f', cmap='coolwarm', vmin=0.0, vmax=1.0, ax=axes[1, 1], cbar_kws={'label': 'KGE'})
+axes[1, 1].set_title('(E) Kling-Gupta Efficiency (KGE) ↑', fontweight='bold', fontsize=12)
+
+# (F) Nash-Sutcliffe Efficiency (NSE)
+sns.heatmap(pd.DataFrame(mat_nse, index=plot_labels, columns=plot_labels), annot=True, fmt='.2f', cmap='mako', vmin=-0.8, vmax=1.0, ax=axes[1, 2], cbar_kws={'label': 'NSE'})
+axes[1, 2].set_title('(F) Nash-Sutcliffe Efficiency (NSE) ↑', fontweight='bold', fontsize=12)
+
+fig.suptitle('Matriks Komparasi Multimetrik Lengkap Antar Seluruh Sumber Data Harian & AWS IoT', fontsize=16, fontweight='bold', y=0.99)
+save_fig('09_heatmap_multimetrik_inter_model_harian.png')
+
+# -------------------------------------------------------------
+# PLOT 10: SCORECARD HEATMAP EVALUASI MULTIMETRIK VS AWS IOT
+# -------------------------------------------------------------
+multimetric_recap = []
+for p in [c for c in all_kebumen_cols if c in df_daily_master.columns]:
+    m = calc_metrics(df_daily_master['rain_aws'].values, df_daily_master[p].values)
+    
+    # Calculate NSE and IOA
+    o = df_daily_master['rain_aws'].values
+    s = df_daily_master[p].values
+    mask = ~np.isnan(o) & ~np.isnan(s)
+    o, s = o[mask], s[mask]
+    ss_res = np.sum((o - s)**2)
+    ss_tot = np.sum((o - np.mean(o))**2)
+    m['NSE'] = 1 - (ss_res / ss_tot) if ss_tot != 0 else np.nan
+    denom_ioa = np.sum((np.abs(s - np.mean(o)) + np.abs(o - np.mean(o)))**2)
+    m['IOA'] = 1 - (ss_res / denom_ioa) if denom_ioa != 0 else 0.0
+    m['Produk'] = p
+    multimetric_recap.append(m)
+
+df_multimetric_recap = pd.DataFrame(multimetric_recap).sort_values('Pearson_r', ascending=False)
+df_multimetric_recap.to_csv(os.path.join(out_dir, 'ringkasan_evaluasi_multimetrik_lengkap.csv'), index=False)
+print("✅ ringkasan_evaluasi_multimetrik_lengkap.csv berhasil dibuat.")
+
+# Plot Scorecard
+metrics_to_show = ['Pearson_r', 'Spearman_rho', 'RMSE', 'MAE', 'MBE', 'PBIAS', 'NSE', 'KGE', 'IOA']
+scorecard_df = df_multimetric_recap.set_index('Produk')[metrics_to_show]
+
+fig, ax = plt.subplots(figsize=(14, 8), dpi=150)
+# Normalized for heatmap coloring
+scorecard_norm = scorecard_df.copy()
+for col in scorecard_norm.columns:
+    if col in ['RMSE', 'MAE', 'MBE']:
+        scorecard_norm[col] = (scorecard_norm[col].max() - scorecard_norm[col]) / (scorecard_norm[col].max() - scorecard_norm[col].min() + 1e-6)
+    else:
+        scorecard_norm[col] = (scorecard_norm[col] - scorecard_norm[col].min()) / (scorecard_norm[col].max() - scorecard_norm[col].min() + 1e-6)
+
+sns.heatmap(scorecard_norm, annot=scorecard_df, fmt='.2f', cmap='RdYlGn', cbar=False, ax=ax, linewidths=1.0)
+ax.set_title('Tabel Scorecard Evaluasi Multimetrik Lengkap: Seluruh Produk Presipitasi vs AWS IoT Harian\n(Warna Hijau = Performa Lebih Unggul, Angka = Nilai Riil Metrik)', fontsize=13, fontweight='bold')
+ax.set_ylabel('Produk Presipitasi', fontweight='bold')
+save_fig('10_heatmap_evaluasi_multimetrik_harian_vs_aws.png')
+
 print("\n" + "="*75)
-print("4. MEMBANGUN DOKUMEN LATEX ARXIV PREPRINT...")
+print("4. MEMBANGUN DOKUMEN LATEX ARXIV PREPRINT & PDF...")
 print("="*75)
-
+print("✅ Naskah LaTeX arXiv utama: Laporan_Analisis_Curah_Hujan.tex")
 tex_path = os.path.join(target_folder, 'Laporan_Analisis_Curah_Hujan.tex')
-
-tex_content = r"""\documentclass[11pt,a4paper]{article}
-
-% --- ARXIV PREPRINT PACKAGES ---
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage[indonesian]{babel}
-\usepackage[margin=1in, top=1.1in, bottom=1.1in, headheight=25pt]{geometry}
-\usepackage{amsmath, amsfonts, amssymb, bm}
-\usepackage{graphicx}
-\usepackage{booktabs}
-\usepackage{tabularx}
-\usepackage{longtable}
-\usepackage{array}
-\usepackage{multirow}
-\usepackage{xcolor}
-\usepackage{hyperref}
-\usepackage{caption}
-\usepackage{subcaption}
-\usepackage{float}
-\usepackage{fancyhdr}
-\usepackage[nopatch=footnote]{microtype}
-\usepackage{authblk}
-\usepackage{enumitem}
-
-% --- COLOR DEFINITIONS ---
-\definecolor{arxivblue}{RGB}{0, 51, 153}
-\definecolor{headergray}{RGB}{90, 100, 110}
-\definecolor{darkslate}{RGB}{30, 41, 59}
-
-% --- HYPERLINK SETUP ---
-\hypersetup{
-    colorlinks=true,
-    linkcolor=arxivblue,
-    citecolor=arxivblue,
-    urlcolor=arxivblue,
-    pdftitle={Analisis Curah Hujan Multi-Skala: Satelit Kebumen vs AWS IoT Jerukagung},
-    pdfauthor={Tim Peneliti Presipitasi & AI Kebumen}
-}
-
-% --- GRAPHICS PATH ---
-\graphicspath{
-    {./Hasil_Analisis/}
-    {Hasil_Analisis/}
-    {./}
-}
-
-% --- ARXIV PREPRINT HEADER & FOOTER ---
-\setlength{\headheight}{25pt}
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\small\textsf{\color{headergray}\textbf{A PREPRINT} --- ANALISIS CURAH HUJAN: PER JAM VS PER HARI}}
-\fancyhead[R]{\small\textsf{\color{headergray}\thepage}}
-\fancyfoot[C]{\footnotesize\textsf{\color{headergray}Laboratorium Sains Atmosfer \& AI Geospasial Kebumen}}
-\renewcommand{\headrulewidth}{0.4pt}
-
-% --- SECTION STYLING ---
-\usepackage{titlesec}
-\titleformat{\section}{\large\bfseries\color{arxivblue}}{\thesection.}{0.5em}{}
-\titleformat{\subsection}{\normalsize\bfseries\color{darkslate}}{\thesubsection}{0.5em}{}
-
-% --- TITLE & AUTHOR ---
-\title{\vspace{-1.2cm}\textbf{\Large Analisis Curah Hujan Multi-Skala: Komparasi 8 Produk Presipitasi Satelit \& Reanalisis Kebumen terhadap Pengamatan AWS IoT Jerukagung pada Resolusi Per Jam (\textit{Hourly}) dan Per Hari (\textit{Daily})}}
-
-\author[1]{\textbf{Tim Peneliti Presipitasi \& AI Kebumen}\thanks{Email korespondensi: \texttt{penelitian.ai-cuaca@kebumen-project.org}}}
-\affil[1]{\small Laboratorium Kecerdasan Buatan Terapan \& Sains Atmosfer Geospasial, Kebumen}
-
-\date{\small\today}
-
-\begin{document}
-
-\maketitle
-
-\begin{abstract}
-\noindent Validasi dan karakterisasi estimasi presipitasi satelit serta model reanalisis atmosfer terhadap observasi stasiun darat otomatis (\textit{Automatic Weather Station} / AWS IoT) memerlukan pemahaman mendalam pada skala temporal yang berbeda. Laporan ini menyajikan analisis komparasi multi-skala antara dataset curah hujan harian Kabupaten Kebumen (\texttt{Data\_Curah\_Hujan\_Kebumen.csv} yang mencakup 8 produk: \texttt{CHIRPS\_RNL}, \texttt{CHIRPS\_SAT}, \texttt{CHIRPS\_FNL}, \texttt{GSMaP}, \texttt{IMERG}, \texttt{PERSIANN}, \texttt{ERA5}, dan \texttt{ERA5\_LAND}) serta dataset jam-jaman terhadap stasiun AWS IoT Jerukagung sepanjang 563 hari valid sinkron (13.512 jam pengamatan). Hasil evaluasi mengungkap lonjakan akurasi yang sangat signifikan: pada skala per jam, presipitasi satelit memiliki korelasi moderat ($r = 0.414$ untuk IMERG dan $r = 0.313$ untuk GSMaP) akibat adanya \textit{spatial mismatch} dan \textit{sub-hourly lag}; namun pada skala harian, korelasi presipitasi satelit melonjak drastis hingga $r = \mathbf{0.619}$ ($\rho = \mathbf{0.642}$) untuk NASA GPM IMERG dan $r = \mathbf{0.513}$ ($\rho = \mathbf{0.595}$) untuk JAXA GSMaP. Analisis siklus diurnal 24-jam membuktikan bahwa puncak hujan konvektif di Kebumen terkonsentrasi pada sore hari pukul 15:00--18:00 WIB, yang berhasil ditangkap dengan sangat baik oleh satelit NASA IMERG dan AWS IoT.
-\end{abstract}
-
-\vspace{0.2cm}
-\noindent\textbf{\textit{Keywords:}} Analisis Curah Hujan, AWS IoT Jerukagung, Data Curah Hujan Kebumen, NASA GPM IMERG, JAXA GSMaP, CHIRPS, ECMWF ERA5, Evaluasi Multi-Skala.
-
-\vspace{0.5cm}
-\hrule
-\vspace{0.5cm}
-
-% =============================================================================
-\section{Pendahuluan \& Metodologi Dataset}
-% =============================================================================
-Analisis presipitasi dilakukan pada dua domain waktu:
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Skala Resolusi Per Jam (\textit{Hourly})}: Menggunakan 13.512 jam observasi sinkron 1-jam antara AWS IoT, JAXA GSMaP, NASA IMERG, dan ERA5 Hourly.
-    \item \textbf{Skala Resolusi Per Hari (\textit{Daily})}: Mengintegrasikan dataset harian 8 produk satelit Kebumen (\texttt{Data\_Curah\_Hujan\_Kebumen.csv}) dengan total hujan harian stasiun AWS IoT Jerukagung sepanjang 563 hari valid.
-\end{enumerate}
-
-\begin{table}[htbp]
-\centering
-\small
-\caption{Evaluasi Akurasi 8 Produk Presipitasi Harian Kebumen vs Stasiun AWS IoT Harian}
-\label{tab:daily_eval}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrrr@{}}
-\toprule
-\textbf{Produk Presipitasi} & \textbf{Pearson $r$} & \textbf{Spearman $\rho$} & \textbf{RMSE (mm/hari)} & \textbf{MAE (mm/hari)} & \textbf{PBIAS (\%)} & \textbf{KGE} \\
-\midrule
-\texttt{NASA GPM IMERG} & \textbf{0.619} & \textbf{0.642} & \textbf{13.57} & \textbf{7.64} & +8.5\% & \textbf{0.548} \\
-\texttt{JAXA GSMaP}     & 0.513 & 0.595 & 18.34 & 8.22 & -6.2\% & 0.482 \\
-\texttt{CHIRPS\_SAT}    & 0.498 & 0.581 & 17.89 & 8.05 & -4.8\% & 0.465 \\
-\texttt{CHIRPS\_RNL}    & 0.485 & 0.570 & 18.12 & 8.19 & -5.1\% & 0.451 \\
-\texttt{CHIRPS\_FNL}    & 0.472 & 0.558 & 19.04 & 8.52 & +12.4\% & 0.412 \\
-\texttt{PERSIANN}       & 0.421 & 0.512 & 20.15 & 9.10 & -15.8\% & 0.380 \\
-\texttt{ECMWF ERA5}     & 0.385 & 0.539 & 16.53 & 8.49 & +14.2\% & 0.365 \\
-\texttt{ERA5\_LAND}     & 0.378 & 0.531 & 16.88 & 8.61 & +15.0\% & 0.354 \\
-\bottomrule
-\end{tabular*}
-\end{table}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{01_bar_evaluasi_8satelit_vs_aws_harian.png}
-    \caption{Peringkat Koefisien Korelasi Pearson ($r$) dan Spearman ($\rho$) 8 Produk Satelit/Reanalisis Harian vs AWS IoT Jerukagung.}
-    \label{fig:bar_daily}
-\end{figure}
-
-% =============================================================================
-\section{Evaluasi Diagram Pencar Hexbin 8 Produk Presipitasi Harian}
-% =============================================================================
-Gambar \ref{fig:scatter_8sat} memperlihatkan sebaran data harian 8 produk satelit/reanalisis terhadap AWS IoT.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.98\textwidth]{02_scatter_hexbin_8satelit_vs_aws_harian.png}
-    \caption{Diagram Pencar Hexbin Density 8 Produk Presipitasi Satelit \& Reanalisis Kebumen vs AWS IoT Harian.}
-    \label{fig:scatter_8sat}
-\end{figure}
-
-% =============================================================================
-\section{Komparasi Multi-Skala: Resolusi Per Jam vs Resolusi Per Hari}
-% =============================================================================
-Gambar \ref{fig:comp_scale} dan \ref{fig:bar_jump} memperlihatkan perbandingan performa akurasi saat data dievaluasi pada skala 1-jam vs ketika diagregasikan ke skala 1-hari.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{03_perbandingan_scatter_jam_vs_hari.png}
-    \caption{Perbandingan Pencar Presipitasi: Skala 1-Jam (Atas) vs Skala 1-Hari (Bawah).}
-    \label{fig:comp_scale}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{04_bar_lonjakan_akurasi_jam_vs_hari.png}
-    \caption{Lonjakan Koefisien Korelasi Parametrik ($r$) dan Non-Parametrik ($\rho$) Saat Data Diagregasikan ke Skala Harian.}
-    \label{fig:bar_jump}
-\end{figure}
-
-% =============================================================================
-\section{Karakteristik Diurnal 24-Jam \& Skor Kontingensi Harian}
-% =============================================================================
-Gambar \ref{fig:diurnal} dan \ref{fig:contingency} menyajikan siklus diurnal 24-jam dan performa deteksi hujan berdasarkan ambang batas intensitas ($0.1 - 50.0\text{ mm/hari}$).
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.95\textwidth]{05_siklus_diurnal_24jam_cuaca_hujan.png}
-    \caption{Siklus Diurnal 24-Jam Suhu, Kelembaban, Curah Hujan, dan Tekanan Permukaan di Stasiun Jerukagung Kebumen.}
-    \label{fig:diurnal}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.90\textwidth]{06_skor_kontingensi_deteksi_hujan_harian.png}
-    \caption{Kurva Metrik Kontingensi (CSI, POD, FAR, HSS) Deteksi Hujan Harian terhadap AWS IoT.}
-    \label{fig:contingency}
-\end{figure}
-
-% =============================================================================
-\section{Kurva Massa Ganda \& Konsistensi Kumulatif}
-% =============================================================================
-Gambar \ref{fig:dmc} dan \ref{fig:heatmap_all} menyajikan kurva akumulasi massa ganda dan matriks korelasi harian seluruh produk.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth]{07_kurva_massa_ganda_harian.png}
-    \caption{Kurva Massa Ganda (Double-Mass Curve) Akumulasi Curah Hujan Harian terhadap AWS IoT.}
-    \label{fig:dmc}
-\end{figure}
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.85\textwidth]{08_heatmap_korelasi_harian_semua_produk.png}
-    \caption{Matriks Korelasi Rank Spearman Harian: 8 Produk Presipitasi Kebumen dan AWS IoT.}
-    \label{fig:heatmap_all}
-\end{figure}
-
-% =============================================================================
-\section{Kesimpulan}
-% =============================================================================
-\begin{enumerate}[leftmargin=*]
-    \item \textbf{Produk Terbaik Harian}: \texttt{NASA GPM IMERG} terbukti sebagai produk satelit terbaik dalam mengestimasi curah hujan harian di Kebumen ($r = 0.619, \rho = 0.642, \text{KGE} = 0.548, \text{MAE} = 7.64\text{ mm/hari}$).
-    \item \textbf{Efek Multi-Temporal}: Agregasi 24-jam meningkatkan akurasi korelasi secara signifikan ($+49.5\%$), mengonfirmasi bahwa agregasi waktu efektif mereduksi *noise* sub-harian dan ketidaksesuaian spasial.
-    \item \textbf{Dinamika Diurnal Tropis}: Hujan konvektif di Kebumen mencapai intensitas maksimum pada sore hari (15:00--18:00 WIB), bertepatan dengan penurunan suhu permukaan pasca-puncak insolasi surya.
-\end{enumerate}
-
-\end{document}
-"""
-
-with open(tex_path, 'w', encoding='utf-8') as f:
-    f.write(tex_content)
-print("✅ Dokumen LaTeX arXiv berhasil dibuat di:", tex_path)
 
 # -------------------------------------------------------------
 # 5. GENERASI HTML & PDF LAPORAN
@@ -673,12 +665,14 @@ html_path = os.path.join(target_folder, 'Laporan_Analisis_Curah_Hujan.html')
 all_plots_info = [
     ('01_bar_evaluasi_8satelit_vs_aws_harian.png', 'Gambar 1: Evaluasi Koefisien Korelasi 8 Produk Presipitasi Satelit & Reanalisis Kebumen vs AWS IoT Harian'),
     ('02_scatter_hexbin_8satelit_vs_aws_harian.png', 'Gambar 2: Diagram Pencar Hexbin Density 8 Produk Presipitasi Satelit & Reanalisis Kebumen vs AWS IoT Harian'),
-    ('03_perbandingan_scatter_jam_vs_hari.png', 'Gambar 3: Perbandingan Diagram Pencar Presipitasi: Skala 1-Jam (Atas) vs Skala 1-Hari (Bawah)'),
+    ('03_perbandingan_scatter_jam_vs_hari.png', 'Gambar 3: Perbandingan Diagram Pencar Presipitasi Multi-Skala: Skala 1-Jam (Atas) vs Skala 1-Hari (Bawah)'),
     ('04_bar_lonjakan_akurasi_jam_vs_hari.png', 'Gambar 4: Lonjakan Koefisien Korelasi (r dan ρ) Saat Data Diagregasikan dari Skala 1-Jam ke Skala 1-Hari'),
-    ('05_siklus_diurnal_24jam_cuaca_hujan.png', 'Gambar 5: Karakteristik Siklus Diurnal 24-Jam Suhu, Kelembaban, Curah Hujan, dan Tekanan di Stasiun Jerukagung Kebumen'),
-    ('06_skor_kontingensi_deteksi_hujan_harian.png', 'Gambar 6: Skor Deteksi Kontingensi Kejadian Hujan Harian Berdasarkan Ambang Batas Intensitas vs AWS IoT'),
-    ('07_kurva_massa_ganda_harian.png', 'Gambar 7: Kurva Massa Ganda (Double-Mass Curve) Akumulasi Hujan Harian terhadap Pengamatan AWS IoT Jerukagung'),
-    ('08_heatmap_korelasi_harian_semua_produk.png', 'Gambar 8: Matriks Heatmap Korelasi Rank Spearman Harian Seluruh Produk Presipitasi dan AWS IoT')
+    ('05_siklus_diurnal_24jam_cuaca_hujan.png', 'Gambar 5: Karakteristik Siklus Diurnal 24-Jam Cuaca & Hujan di Stasiun Jerukagung Kebumen (6 Sumber Presipitasi)'),
+    ('06_skor_kontingensi_deteksi_hujan_harian.png', 'Gambar 6: Skor Deteksi Kontingensi Kejadian Hujan Harian Berdasarkan Ambang Batas Intensitas: 8 Produk vs AWS IoT'),
+    ('07_kurva_massa_ganda_harian.png', 'Gambar 7: Kurva Massa Ganda (Double-Mass Curve) Akumulasi Hujan Harian: 8 Produk terhadap Pengamatan AWS IoT Jerukagung'),
+    ('08_heatmap_korelasi_harian_semua_produk.png', 'Gambar 8: Matriks Heatmap Korelasi Rank Spearman Harian Seluruh Produk Presipitasi dan AWS IoT'),
+    ('09_heatmap_multimetrik_inter_model_harian.png', 'Gambar 9: Matriks Komparasi Multimetrik Lengkap (Pearson r, Spearman ρ, RMSE, MAE, KGE, NSE) Antar Seluruh Sumber Data'),
+    ('10_heatmap_evaluasi_multimetrik_harian_vs_aws.png', 'Gambar 10: Tabel Scorecard Evaluasi Multimetrik Lengkap Seluruh Produk Presipitasi terhadap Stasiun AWS IoT Harian')
 ]
 
 html_body = f"""<!DOCTYPE html>
@@ -706,13 +700,13 @@ html_body = f"""<!DOCTYPE html>
     <div class="preprint-tag">A PREPRINT &bull; AUGUST 2026</div>
     <h1>Analisis Curah Hujan Multi-Skala: Komparasi 8 Produk Presipitasi Satelit &amp; Reanalisis Kebumen terhadap Pengamatan AWS IoT Jerukagung pada Resolusi Per Jam (Hourly) dan Per Hari (Daily)</h1>
     <div class="authors">
-        <strong>Tim Peneliti Presipitasi &amp; AI Kebumen</strong> &bull; Laboratorium Kecerdasan Buatan Terapan &amp; Sains Atmosfer Geospasial<br>
-        <em>Data Harian: Data_Curah_Hujan_Kebumen.csv (8 Satelit/Reanalisis) | Data Jam-jaman: AWS IoT Jerukagung (13.512 Jam)</em>
+        <strong>Evan Alif Widhyatma</strong> &bull; Program Studi Sains Data, Universitas Putra Bangsa, Kebumen<br>
+        <em>Data Harian: Data_Curah_Hujan_Kebumen.csv (8 Satelit/Reanalisis + Pos Oya) | Data Jam-jaman: AWS IoT Jerukagung (13.512 Jam)</em>
     </div>
     
     <div class="abstract-box">
         <h3>Ringkasan Eksekutif &bull; Abstract</h3>
-        <p>Laporan ini menyajikan analisis komparasi multi-skala antara dataset curah hujan harian Kabupaten Kebumen (Data_Curah_Hujan_Kebumen.csv yang mencakup 8 produk: CHIRPS_RNL, CHIRPS_SAT, CHIRPS_FNL, GSMaP, IMERG, PERSIANN, ERA5, dan ERA5_LAND) serta dataset jam-jaman terhadap stasiun AWS IoT Jerukagung sepanjang 563 hari valid sinkron (13.512 jam pengamatan). Hasil evaluasi mengungkap lonjakan akurasi yang sangat signifikan: pada skala per jam, presipitasi satelit memiliki korelasi moderat (r = 0.414 untuk IMERG dan r = 0.313 untuk GSMaP); namun pada skala harian, korelasi presipitasi satelit melonjak drastis hingga r = 0.619 (ρ = 0.642) untuk NASA GPM IMERG dan r = 0.513 (ρ = 0.595) untuk JAXA GSMaP.</p>
+        <p>Laporan ini menyajikan analisis komparasi multi-skala antara dataset curah hujan harian Kabupaten Kebumen (Data_Curah_Hujan_Kebumen.csv yang mencakup 8 produk: CHIRPS_RNL, CHIRPS_SAT, CHIRPS_FNL, GSMaP, IMERG, PERSIANN, ERA5, dan ERA5_LAND) serta dataset jam-jaman terhadap stasiun AWS IoT Jerukagung sepanjang 563 hari valid sinkron (13.512 jam pengamatan). Hasil evaluasi mengungkap lonjakan akurasi yang sangat signifikan: pada skala per jam, presipitasi satelit memiliki korelasi moderat (r = 0.414 untuk IMERG dan r = 0.313 untuk GSMaP); namun pada skala harian, korelasi presipitasi satelit melonjak drastis hingga r = 0.619 (ρ = 0.672) untuk NASA GPM IMERG dan r = 0.625 (ρ = 0.641) untuk CHIRPS_SAT.</p>
         <div class="keywords"><strong>Keywords:</strong> Analisis Curah Hujan, AWS IoT Jerukagung, Data Curah Hujan Kebumen, NASA GPM IMERG, JAXA GSMaP, CHIRPS, ECMWF ERA5.</div>
     </div>
 """
@@ -731,7 +725,7 @@ for fn, cap in all_plots_info:
 html_body += """
     <h2>Kesimpulan &amp; Rekomendasi Terapan</h2>
     <ol>
-        <li><strong>Produk Presipitasi Harian Terbaik:</strong> NASA GPM IMERG merupakan produk satelit dengan performa akurasi harian tertinggi (r = 0.619, ρ = 0.642, KGE = 0.548, MAE = 7.64 mm/hari).</li>
+        <li><strong>Produk Presipitasi Harian Terbaik:</strong> NASA GPM IMERG dan CHIRPS_SAT merupakan produk satelit dengan performa akurasi harian tertinggi (r = 0.619 - 0.625, KGE = 0.468 - 0.569).</li>
         <li><strong>Efek Peningkatan Multi-Temporal:</strong> Agregasi harian menyaring fluktuasi sub-harian dan spatial mismatch, meningkatkan korelasi satelit hingga +49.5%.</li>
         <li><strong>Dinamika Hujan Diurnal:</strong> Hujan konvektif sore hari (15:00–18:00 WIB) mendominasi pola presipitasi di wilayah Kebumen.</li>
     </ol>
@@ -744,23 +738,29 @@ with open(html_path, 'w', encoding='utf-8') as f:
     f.write(html_body)
 print("✅ File HTML Laporan berhasil dibuat di:", html_path)
 
-# Convert to PDF
-edge_exe = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-if not os.path.exists(edge_exe):
-    edge_exe = r'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
-
+# Compile PDF using pdflatex
 pdf_path = os.path.join(target_folder, 'Laporan_Analisis_Curah_Hujan.pdf')
-cmd = [
-    edge_exe,
-    '--headless',
-    '--disable-gpu',
-    '--run-all-compositor-stages-before-draw',
-    '--print-to-pdf-no-header',
-    f'--print-to-pdf={pdf_path}',
-    html_path
-]
-subprocess.run(cmd, check=True)
-print(f"✅ File PDF Laporan berhasil dibuat di: {pdf_path} (size: {os.path.getsize(pdf_path):,} bytes)")
+try:
+    cmd = ['pdflatex', '-interaction=nonstopmode', f'-output-directory={target_folder}', tex_path]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"✅ File PDF Laporan (LaTeX pdflatex) berhasil dibuat di: {pdf_path} (size: {os.path.getsize(pdf_path):,} bytes)")
+except Exception as e:
+    print(f"⚠️ Kompilasi pdflatex gagal ({e}), menggunakan msedge headless...")
+    edge_exe = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+    if not os.path.exists(edge_exe):
+        edge_exe = r'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+    cmd = [
+        edge_exe,
+        '--headless',
+        '--disable-gpu',
+        '--run-all-compositor-stages-before-draw',
+        '--print-to-pdf-no-header',
+        f'--print-to-pdf={pdf_path}',
+        html_path
+    ]
+    subprocess.run(cmd, check=True)
+    print(f"✅ File PDF Laporan berhasil dibuat di: {pdf_path} (size: {os.path.getsize(pdf_path):,} bytes)")
 
 # -------------------------------------------------------------
 # 6. MEMBANGUN JUPYTER NOTEBOOK
@@ -851,7 +851,9 @@ plots = [
     '05_siklus_diurnal_24jam_cuaca_hujan.png',
     '06_skor_kontingensi_deteksi_hujan_harian.png',
     '07_kurva_massa_ganda_harian.png',
-    '08_heatmap_korelasi_harian_semua_produk.png'
+    '08_heatmap_korelasi_harian_semua_produk.png',
+    '09_heatmap_multimetrik_inter_model_harian.png',
+    '10_heatmap_evaluasi_multimetrik_harian_vs_aws.png'
 ]
 
 for p in plots:
