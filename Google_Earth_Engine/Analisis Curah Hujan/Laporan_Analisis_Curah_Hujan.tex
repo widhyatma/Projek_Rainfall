@@ -58,7 +58,7 @@
 % =============================================================================
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\textsf{\color{headergray}\textbf{A PREPRINT} --- EVALUASI PRESIPITASI MULTI-SKALA SATELIT VS AWS IOT}}
+\fancyhead[L]{\small\textsf{\color{headergray}\textbf{PREPRINT} --- EVALUASI PRESIPITASI}}
 \fancyhead[R]{\small\textsf{\color{headergray}\thepage}}
 \fancyfoot[C]{\footnotesize\textsf{\color{headergray}Program Studi Sains Data, Universitas Putra Bangsa, Kebumen}}
 \renewcommand{\headrulewidth}{0.4pt}
@@ -66,17 +66,17 @@
 % =============================================================================
 % SECTION FORMATTING
 % =============================================================================
-\titleformat{\section}{\large\bfseries\color{sectionblue}}{\thesection.}{0.6em}{}
+\titleformat{\section}{\large\bfseries\color{sectionblue}}{\thesection.}{14pt}{}
 \titleformat{\subsection}{\normalsize\bfseries\color{darkslate}}{\thesubsection}{0.5em}{}
 \titleformat{\subsubsection}{\small\bfseries\color{darkslate}}{\thesubsubsection}{0.5em}{}
 
 % =============================================================================
 % TITLE & AUTHOR METADATA
 % =============================================================================
-\title{\vspace{-1.2cm}\textbf{\Large Analisis Curah Hujan Multi-Skala: Evaluasi Komparatif 8 Produk Presipitasi Satelit dan Reanalisis terhadap Pengamatan Sensor AWS IoT Jerukagung pada Resolusi Jam-Jaman (\textit{Hourly}) dan Harian (\textit{Daily})}}
+\title{\vspace{-1.2cm}\textbf{\Large Analisis Curah Hujan dan Evaluasi Komparatif Produk Estimasi Satelit dan Reanalisis terhadap Pengamatan Sensor AWS IoT pada Resolusi Jam dan Harian \\ (Studi Kasus: Desa Jerukagung, Kebumen)}}
 
-\author[1]{\textbf{Evan Alif Widhyatma}\thanks{Penulis korespondensi: \texttt{alifwidhyatma@gmail.com}}}
-\affil[1]{\small Program Studi Sains Data, Fakultas Ilmu Komputer, Universitas Putra Bangsa, Kebumen, Jawa Tengah, Indonesia}
+\author[1]{\textbf{Evan Alif Widhyatma}\thanks{Penulis korespondensi: \texttt{evanalifwidhyatma@gmail.com}}}
+\affil[1]{\small Program Studi Sains Data, Fakultas Sains dan Teknologi, Universitas Putra Bangsa, Kebumen, Jawa Tengah, Indonesia}
 
 \date{\small\today}
 
@@ -85,11 +85,11 @@
 \maketitle
 
 \begin{abstract}
-\noindent Validasi dan kuantifikasi ketidakpastian estimasi curah hujan dari produk satelit dan model reanalisis atmosfer terhadap observasi stasiun darat otomatis (\textit{Automatic Weather Station} / AWS IoT) merupakan tahapan fundamental dalam pemodelan hidrologi dan mitigasi bencana hidrometeorologi. Penelitian ini menyajikan evaluasi komparatif multi-skala antara dataset presipitasi harian Kabupaten Kebumen (\texttt{Data\_Curah\_Hujan\_Kebumen.csv}) yang mencakup 8 produk satelit/reanalisis (\texttt{CHIRPS\_RNL}, \texttt{CHIRPS\_SAT}, \texttt{CHIRPS\_FNL}, \texttt{GSMaP}, \texttt{IMERG}, \texttt{PERSIANN}, \texttt{ERA5}, dan \texttt{ERA5\_LAND}) serta Pos Hujan \texttt{OYA}, dan dataset resolusi jam-jaman (\textit{hourly}) terhadap stasiun darat AWS IoT Jerukagung sepanjang 563 hari valid ($13.512$ jam observasi sinkron, 1 Januari 2025 s.d. 17 Juli 2026). Evaluasi dilakukan secara komprehensif menggunakan 9 metrik statistik terpadu ($r$, $\rho$, $\text{RMSE}$, $\text{MAE}$, $\text{MBE}$, $\text{PBIAS}$, $\text{NSE}$, $\text{KGE}$, dan $\text{IOA}$) serta metrik kontingensi kejadian hujan ($\text{POD}$, $\text{FAR}$, $\text{CSI}$, $\text{HSS}$). Hasil studi membuktikan adanya fenomena \textit{lonjakan akurasi multi-temporal} (\textit{multi-scale accuracy jump}): pada skala 1-jam, presipitasi satelit memiliki korelasi moderat ($r = 0{,}414$ untuk IMERG dan $r = 0{,}313$ untuk GSMaP) akibat pergeseran waktu mikro (\textit{sub-hourly lag}) dan perbedaan jejak spasial (\textit{spatial footprint mismatch}); namun saat diagregasikan ke skala harian ($24\text{h}$), akurasi korelasi melonjak drastis hingga $r = \mathbf{0{,}619}$ ($\rho = \mathbf{0{,}672}$, $\text{KGE} = 0{,}468$) untuk \texttt{NASA GPM IMERG} dan $r = \mathbf{0{,}625}$ ($\rho = \mathbf{0{,}641}$, $\text{KGE} = 0{,}569$) untuk \texttt{CHIRPS\_SAT}. Analisis siklus diurnal 24-jam mengungkap bahwa hujan konvektif di Kebumen terkonsentrasi sangat kuat pada sore hari (15:00--18:00 WIB) yang bertepatan dengan penurunan suhu permukaan pasca-insolasi maksimum dan osilasi semidiurnal tekanan udara.
+\noindent Validasi dan kuantifikasi ketidakpastian estimasi curah hujan dari produk satelit dan model reanalisis atmosfer terhadap observasi stasiun darat otomatis (\textit{Automatic Weather Station} / AWS IoT) merupakan tahapan fundamental dalam pemodelan hidrologi dan mitigasi bencana hidrometeorologi. Penelitian ini menyajikan evaluasi komparatif multi-skala antara dataset presipitasi harian Kabupaten Kebumen (\texttt{Data\_Curah\_Hujan\_Kebumen.csv}) yang mencakup 9 produk estimasi satelit dan model reanalisis (\texttt{CHIRPS\_RNL}, \texttt{CHIRPS\_SAT}, \texttt{CHIRPS\_FNL}, \texttt{GSMaP}, \texttt{IMERG}, \texttt{PERSIANN}, \texttt{ERA5}, \texttt{ERA5\_LAND}, dan \texttt{OYA}), serta dataset resolusi jam-jaman (\textit{hourly}) terhadap stasiun darat AWS IoT Jerukagung sepanjang 563 hari valid ($13.512$ jam observasi sinkron, 1 Januari 2025 s.d. 17 Juli 2026). Evaluasi dilakukan secara komprehensif menggunakan 9 metrik statistik terpadu ($r$, $\rho$, $\text{RMSE}$, $\text{MAE}$, $\text{MBE}$, $\text{PBIAS}$, $\text{NSE}$, $\text{KGE}$, dan $\text{IOA}$) serta metrik kontingensi kejadian hujan ($\text{POD}$, $\text{FAR}$, $\text{CSI}$, $\text{HSS}$). Hasil studi membuktikan adanya fenomena \textit{lonjakan akurasi multi-temporal} (\textit{multi-scale accuracy jump}): pada skala 1-jam, presipitasi satelit memiliki korelasi moderat ($r = 0{,}414$ untuk IMERG dan $r = 0{,}313$ untuk GSMaP) akibat pergeseran waktu mikro (\textit{sub-hourly lag}) dan perbedaan jejak spasial (\textit{spatial footprint mismatch}); namun saat diagregasikan ke skala harian ($24\text{h}$), akurasi korelasi melonjak drastis hingga $r = \mathbf{0{,}619}$ ($\rho = \mathbf{0{,}672}$, $\text{KGE} = 0{,}468$) untuk \texttt{NASA GPM IMERG} dan $r = \mathbf{0{,}625}$ ($\rho = \mathbf{0{,}641}$, $\text{KGE} = 0{,}569$) untuk \texttt{CHIRPS\_SAT}, serta $r = \mathbf{0{,}759}$ ($\rho = \mathbf{0{,}724}$) untuk model \texttt{OYA}. Analisis siklus diurnal 24-jam mengungkap bahwa hujan konvektif di Kebumen terkonsentrasi sangat kuat pada sore hari (15:00--18:00 WIB) yang bertepatan dengan penurunan suhu permukaan pasca-insolasi maksimum dan osilasi semidiurnal tekanan udara.
 \end{abstract}
 
 \vspace{0.2cm}
-\noindent\textbf{\textit{Keywords:}} Analisis Curah Hujan Multi-Skala, AWS IoT Jerukagung, NASA GPM IMERG, JAXA GSMaP, CHIRPS, ECMWF ERA5, Siklus Diurnal, Evaluasi Multimetrik.
+\noindent\textbf{\textit{Keywords:}} Analisis Curah Hujan Multi-Skala, AWS IoT Jerukagung, NASA GPM IMERG, JAXA GSMaP, CHIRPS, ECMWF ERA5, Satelit OYA, Siklus Diurnal, Evaluasi Multimetrik.
 
 \vspace{0.4cm}
 \hrule
@@ -100,11 +100,11 @@
 % =============================================================================
 Presipitasi merupakan komponen paling dinamis dalam siklus hidrologi tropis yang memiliki variabilitas spasial dan temporal sangat tinggi. Di wilayah pesisir selatan Jawa seperti Kabupaten Kebumen, estimasi presipitasi yang akurat sangat krusial untuk peringatan dini banjir, pengelolaan sumber daya air pertanian, dan pemodelan kecerdasan buatan (\textit{Deep Learning}). 
 
-Meskipun produk estimasi satelit seperti NASA GPM IMERG, JAXA GSMaP, CHIRPS, serta reanalisis ECMWF ERA5 menyediakan liputan spasial tanpa celah, data tersebut rentan terhadap bias sistematis, atenuasi sinyal gelombang mikro, dan keterbatasan resolusi spasial. Oleh karena itu, evaluasi terkalibrasi terhadap stasiun darat mikro seperti stasiun AWS IoT Jerukagung menjadi sangat mendesak.
+Meskipun produk estimasi satelit seperti NASA GPM IMERG, JAXA GSMaP, CHIRPS, OYA, serta reanalisis ECMWF ERA5 menyediakan liputan spasial tanpa celah, data tersebut rentan terhadap bias sistematis, atenuasi sinyal gelombang mikro, dan keterbatasan resolusi spasial. Oleh karena itu, evaluasi terkalibrasi terhadap stasiun darat mikro seperti stasiun AWS IoT Jerukagung menjadi sangat mendesak.
 
 Penelitian ini bertujuan untuk:
 \begin{enumerate}[leftmargin=*]
-    \item Mengevaluasi performa 8 produk presipitasi satelit/reanalisis dan 1 pos hujan darat terhadap data observasi stasiun AWS IoT Jerukagung pada skala harian ($24\text{h}$).
+    \item Mengevaluasi performa 9 produk presipitasi satelit dan reanalisis terhadap data observasi stasiun darat AWS IoT Jerukagung pada skala harian ($24\text{h}$).
     \item Mengidentifikasi dan memodelkan fenomena \textit{lonjakan akurasi multi-temporal} (\textit{multi-scale accuracy jump}) saat data berpindah dari skala jam-jaman ($1\text{h}$) ke skala harian ($24\text{h}$).
     \item Menganalisis siklus diurnal 24-jam gabungan antara variabel meteorologi (suhu udara, kelembaban relatif, tekanan atmosfer permukaan) dan dinamika kejadian curah hujan konvektif sore hari di Stasiun Jerukagung.
     \item Membangun matriks komparasi multimetrik terpadu ($10 \times 10$) antar seluruh produk data presipitasi.
@@ -192,7 +192,7 @@ Tabel \ref{tab:multimetric_recap} dan Gambar \ref{fig:bar_daily} menyajikan eval
 \toprule
 \textbf{Produk Presipitasi} & \textbf{Pearson $r$} & \textbf{Spearman $\rho$} & \textbf{RMSE (mm)} & \textbf{MAE (mm)} & \textbf{MBE (mm)} & \textbf{PBIAS (\%)} & \textbf{NSE} & \textbf{KGE} & \textbf{IOA} \\
 \midrule
-\texttt{Pos Hujan OYA}      & \textbf{0.759} & \textbf{0.724} & \textbf{9.18}  & \textbf{4.89} & -1.53 & -18.1\% & \textbf{+0.549} & \textbf{0.676} & \textbf{0.863} \\
+\texttt{Satelit OYA}        & \textbf{0.759} & \textbf{0.724} & \textbf{9.18}  & \textbf{4.89} & -1.53 & -18.1\% & \textbf{+0.549} & \textbf{0.676} & \textbf{0.863} \\
 \texttt{CHIRPS\_SAT}         & \textbf{0.625} & 0.641          & 11.05 & 6.46          & -0.99 & -11.7\% & \textbf{+0.346} & \textbf{0.569} & \textbf{0.774} \\
 \texttt{NASA GPM IMERG}      & \textbf{0.619} & \textbf{0.672} & 14.49 & 7.51          & +1.57 & +18.6\% & -0.123          & \textbf{0.468} & \textbf{0.759} \\
 \texttt{PERSIANN}            & 0.490          & 0.513          & 12.20 & 7.20          & -1.89 & -22.3\% & +0.203          & 0.327          & 0.657          \\
@@ -216,7 +216,7 @@ Tabel \ref{tab:multimetric_recap} dan Gambar \ref{fig:bar_daily} menyajikan eval
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.98\textwidth]{02_scatter_hexbin_8satelit_vs_aws_harian.png}
-    \caption{Diagram Pencar Kepadatan Logaritmik (\textit{Hexbin Density Scatter}) 8 Produk Presipitasi Satelit \& Reanalisis Kebumen vs AWS IoT Harian.}
+    \caption{Diagram Pencar Kepadatan Logaritmik (\textit{Hexbin Density Scatter}) 9 Produk Presipitasi Satelit \& Reanalisis Kebumen vs AWS IoT Harian.}
     \label{fig:scatter_8sat}
 \end{figure}
 
@@ -239,7 +239,7 @@ Gambar \ref{fig:comp_scale} dan \ref{fig:bar_jump} memperlihatkan fenomena lonja
 \texttt{JAXA GSMaP}     & 0.313 & \textbf{0.350} & \textbf{+11.8\%} & 0.342 & \textbf{0.543} & 0.48 mm & 8.36 mm & 0.346 \\
 \texttt{ECMWF ERA5}     & 0.105 & \textbf{0.385} & \textbf{+266.7\%} & 0.213 & \textbf{0.539} & 0.58 mm & 8.49 mm & 0.363 \\
 \texttt{ERA5\_LAND}     & 0.120 & \textbf{0.377} & \textbf{+214.2\%} & 0.220 & \textbf{0.533} & 0.58 mm & 8.57 mm & 0.354 \\
-\texttt{Pos Hujan OYA}  & 0.666 & \textbf{0.759} & \textbf{+14.0\%} & 0.463 & \textbf{0.724} & 0.32 mm & 4.89 mm & \textbf{0.676} \\
+\texttt{Satelit OYA}     & 0.666 & \textbf{0.759} & \textbf{+14.0\%} & 0.463 & \textbf{0.724} & 0.32 mm & 4.89 mm & \textbf{0.676} \\
 \bottomrule
 \end{tabular}%
 }

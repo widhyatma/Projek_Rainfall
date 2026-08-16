@@ -40,8 +40,8 @@ print("="*75)
 kebumen_csv = os.path.join(data_dir, 'Data_Curah_Hujan_Kebumen.csv')
 df_kebumen_raw = pd.read_csv(kebumen_csv)
 df_kebumen_raw['Date'] = pd.to_datetime(df_kebumen_raw['datetime_utc'] if 'datetime_utc' in df_kebumen_raw.columns else df_kebumen_raw['Date'])
-sat_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND']
-all_kebumen_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']
+sat_cols = ['CHIRPS_RNL', 'CHIRPS_SAT', 'CHIRPS_FNL', 'GSMaP', 'IMERG', 'PERSIANN', 'ERA5', 'ERA5_LAND', 'OYA']
+all_kebumen_cols = sat_cols
 df_daily_sat = df_kebumen_raw.set_index('Date')[[c for c in all_kebumen_cols if c in df_kebumen_raw.columns]].copy()
 for c in ['ERA5', 'ERA5_LAND']:
     if c in df_daily_sat.columns:
@@ -88,11 +88,11 @@ df_oya_h = pd.read_csv(os.path.join(data_dir, 'Rainfall_Oya_TimeSeries_UNIX.csv'
 df_oya_h['Date'] = pd.to_datetime(df_oya_h['datetime_utc'])
 df_oya_hourly = df_oya_h.set_index('Date')[['precipitation_mmhr']].resample('1h').mean().rename(columns={'precipitation_mmhr': 'rain_oya'})
 
-# Merge master hourly
 df_hourly = df_aws.join(df_gsmap_h, how='inner').join(df_imerg_hourly, how='inner').join(df_era5_hourly, how='inner').join(df_land_hourly, how='left').join(df_oya_hourly, how='left')
 for c in ['rain_era5', 'rain_era5_land']:
     if c in df_hourly.columns:
         df_hourly[c] = df_hourly[c].clip(lower=0.0)
+df_hourly_master = df_hourly
 print(f"Dataset Jam-jaman Overlap Sinkron: {len(df_hourly):,} jam (1 Jan 2025 s.d. 17 Jul 2026)")
 
 # -------------------------------------------------------------
@@ -150,6 +150,22 @@ def calc_metrics(obs, sim):
         'KGE': kge,
         'IOA': ioa
     }
+
+def calc_contingency(obs, sim, th=0.1):
+    mask = ~np.isnan(obs) & ~np.isnan(sim)
+    o, s = (obs[mask] >= th), (sim[mask] >= th)
+    hits = np.sum(o & s)
+    misses = np.sum(o & ~s)
+    false_alarms = np.sum(~o & s)
+    correct_negatives = np.sum(~o & ~s)
+    total = hits + misses + false_alarms + correct_negatives
+    
+    pod = hits / (hits + misses) if (hits + misses) > 0 else np.nan
+    far = false_alarms / (hits + false_alarms) if (hits + false_alarms) > 0 else np.nan
+    csi = hits / (hits + misses + false_alarms) if (hits + misses + false_alarms) > 0 else np.nan
+    exp_corr = ((hits + misses)*(hits + false_alarms) + (correct_negatives + misses)*(correct_negatives + false_alarms)) / total if total > 0 else 0
+    hss = (hits + correct_negatives - exp_corr) / (total - exp_corr) if (total - exp_corr) != 0 else np.nan
+    return {'CSI': csi, 'POD': pod, 'FAR': far, 'HSS': hss}
 
 # 1. Evaluasi Harian: 8 Satelit Kebumen vs AWS IoT
 daily_eval_list = []
@@ -218,7 +234,7 @@ def save_fig(fn):
     print(f"✅ Plot {fn} berhasil disimpan.")
 
 # -------------------------------------------------------------
-# PLOT 01: BAR EVALUASI 8 SATELIT KEBUMEN VS AWS HARIAN
+# PLOT 01: BAR EVALUASI 9 SATELIT & REANALISIS KEBUMEN VS AWS HARIAN
 # -------------------------------------------------------------
 fig, axes = plt.subplots(1, 2, figsize=(16, 6), dpi=150)
 df_sorted = df_eval_daily.sort_values('Pearson_r', ascending=True)
@@ -227,7 +243,7 @@ colors = plt.cm.viridis(np.linspace(0.2, 0.85, len(df_sorted)))
 axes[0].barh(df_sorted['Produk'], df_sorted['Pearson_r'], color=colors)
 axes[0].set_title('(A) Koefisien Korelasi Pearson (r) Harian vs AWS', fontweight='bold')
 axes[0].set_xlabel('Pearson Correlation (r)')
-axes[0].set_xlim(0, 0.75)
+axes[0].set_xlim(0, 0.85)
 for i, v in enumerate(df_sorted['Pearson_r']):
     axes[0].text(v + 0.01, i, f"{v:.3f}", va='center', fontweight='bold', fontsize=9)
 
@@ -236,283 +252,191 @@ colors_rho = plt.cm.magma(np.linspace(0.3, 0.85, len(df_sorted_rho)))
 axes[1].barh(df_sorted_rho['Produk'], df_sorted_rho['Spearman_rho'], color=colors_rho)
 axes[1].set_title('(B) Korelasi Non-Parametrik Spearman (ρ) Harian vs AWS', fontweight='bold')
 axes[1].set_xlabel('Spearman Rank (ρ)')
-axes[1].set_xlim(0, 0.75)
+axes[1].set_xlim(0, 0.85)
 for i, v in enumerate(df_sorted_rho['Spearman_rho']):
     axes[1].text(v + 0.01, i, f"{v:.3f}", va='center', fontweight='bold', fontsize=9)
 
-fig.suptitle('Evaluasi Akurasi 8 Produk Presipitasi Satelit & Reanalisis Kebumen vs Stasiun AWS IoT Harian', fontsize=14, fontweight='bold', y=0.98)
+fig.suptitle('Evaluasi Akurasi 9 Produk Presipitasi Satelit & Reanalisis Kebumen vs Stasiun AWS IoT Harian', fontsize=14, fontweight='bold', y=0.98)
 save_fig('01_bar_evaluasi_8satelit_vs_aws_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 02: SCATTER HEXBIN 8 SATELIT VS AWS IOT HARIAN
+# PLOT 02: SCATTER HEXBIN 9 SATELIT & REANALISIS VS AWS IOT HARIAN
 # -------------------------------------------------------------
-fig, axes = plt.subplots(2, 4, figsize=(20, 10), dpi=150)
+fig, axes = plt.subplots(3, 3, figsize=(18, 15), dpi=150)
 axes_flat = axes.flatten()
 
 for idx, sat in enumerate(sat_cols):
+    if idx >= len(axes_flat): break
     ax = axes_flat[idx]
     x = df_daily_master['rain_aws']
     y = df_daily_master[sat]
     mask = ~x.isna() & ~y.isna()
     xm, ym = x[mask], y[mask]
-    
     hb = ax.hexbin(xm, ym, gridsize=35, cmap='YlGnBu', mincnt=1, bins='log')
     ax.plot([0, 100], [0, 100], 'r--', lw=1.2, label='1:1 Line')
-    slope, intercept, r_val, _, _ = stats.linregress(xm, ym)
-    ax.plot([0, 100], [slope*0 + intercept, slope*100 + intercept], 'm-', lw=1.5, label=f'Fit (r={r_val:.3f})')
-    ax.set_title(f'{sat} vs AWS (Daily)\n(MAE = {np.mean(np.abs(ym-xm)):.2f} mm/hari)', fontweight='bold', fontsize=11)
-    ax.set_xlabel('AWS IoT (mm/hari)')
-    ax.set_ylabel(f'{sat} (mm/hari)')
-    ax.set_xlim(0, 80)
-    ax.set_ylim(0, 80)
-    ax.legend(loc='upper left', fontsize=8)
-    fig.colorbar(hb, ax=ax, label='log10(Counts)')
+    if len(xm) > 2:
+        m_reg, b_reg = np.polyfit(xm, ym, 1)
+        ax.plot(np.linspace(0, 100, 100), m_reg*np.linspace(0, 100, 100) + b_reg, 'b-', lw=1.2, label=f'Fit: y={m_reg:.2f}x+{b_reg:.1f}')
+        r_val, _ = stats.pearsonr(xm, ym)
+        rho_val, _ = stats.spearmanr(xm, ym)
+        rmse_val = np.sqrt(np.mean((ym - xm)**2))
+        ax.text(0.05, 0.88, f"r = {r_val:.3f}\nρ = {rho_val:.3f}\nRMSE = {rmse_val:.1f} mm", transform=ax.transAxes, fontsize=9.5, bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.85, edgecolor='#cbd5e1'))
+    ax.set_title(f"({chr(65+idx)}) {sat} vs AWS IoT", fontweight='bold', fontsize=11)
+    ax.set_xlabel('AWS IoT Harian (mm/hari)', fontsize=9.5)
+    ax.set_ylabel(f'{sat} Harian (mm/hari)', fontsize=9.5)
+    ax.set_xlim(0, 100)
+    ax.set_ylim(0, 100)
+    ax.legend(loc='lower right', fontsize=8)
 
-fig.suptitle('Diagram Pencar Hexbin Density 8 Produk Satelit & Reanalisis Kebumen vs AWS IoT Harian', fontsize=15, fontweight='bold', y=0.98)
+for j in range(len(sat_cols), len(axes_flat)): fig.delaxes(axes_flat[j])
+fig.suptitle('Diagram Pencar Kepadatan Hexbin Logaritmik: 9 Produk Presipitasi Satelit & Reanalisis vs AWS IoT Harian', fontsize=15, fontweight='bold', y=0.99)
 save_fig('02_scatter_hexbin_8satelit_vs_aws_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 03: PERBANDINGAN MULTI-SKALA KONSISTEN (JAM VS HARI - 5 PRODUK)
+# PLOT 03: MULTI-TEMPORAL SCATTER PERBANDINGAN JAM VS HARI (5 PRODUK)
 # -------------------------------------------------------------
-num_pairs = len(multiscale_pairs)
-fig, axes = plt.subplots(2, num_pairs, figsize=(4.2 * num_pairs, 9), dpi=150)
+comp_models = [('IMERG', 'rain_imerg'), ('GSMaP', 'rain_gsmap'), ('ERA5', 'rain_era5'), ('ERA5_LAND', 'rain_era5_land'), ('OYA', 'rain_oya')]
+fig, axes = plt.subplots(2, 5, figsize=(25, 10), dpi=150)
 
-# Baris 1: Skala 1-Jam (Hourly)
-for idx, (prod, name, col_c) in enumerate(multiscale_pairs):
-    ax = axes[0, idx]
-    x = df_hourly['rain_aws']
-    y = df_hourly[prod]
-    mask = ~x.isna() & ~y.isna()
-    xm, ym = x[mask], y[mask]
-    
-    if len(xm) > 4000:
-        idx_samp = np.random.RandomState(42).choice(len(xm), 4000, replace=False)
-        x_s, y_s = xm.iloc[idx_samp], ym.iloc[idx_samp]
-    else:
-        x_s, y_s = xm, ym
-        
-    ax.scatter(x_s, y_s, color=col_c, alpha=0.35, s=10, edgecolors='none')
-    ax.plot([0, 25], [0, 25], 'k--', lw=1.2, label='1:1 Line')
-    slope, intercept, r_val, _, _ = stats.linregress(xm, ym)
-    ax.plot([0, 25], [slope*0 + intercept, slope*25 + intercept], 'b-', lw=1.6, label=f'Fit (r={r_val:.3f})')
-    ax.set_title(f'1-JAM: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/jam)', fontweight='bold', fontsize=10.5)
-    ax.set_xlabel('AWS IoT Jerukagung (mm/jam)', fontsize=9.5)
-    ax.set_ylabel(f'{name} (mm/jam)', fontsize=9.5)
-    ax.set_xlim(0, 20)
-    ax.set_ylim(0, 20)
-    ax.legend(loc='upper left', fontsize=8)
-
-# Baris 2: Skala 1-Hari (Daily)
-for idx, (prod, name, col_c) in enumerate(multiscale_pairs):
-    ax = axes[1, idx]
-    x = df_daily_master['rain_aws']
-    y = df_daily_master[name]
-    mask = ~x.isna() & ~y.isna()
-    xm, ym = x[mask], y[mask]
-    
-    ax.scatter(xm, ym, color=col_c, alpha=0.65, s=25, edgecolors='none')
-    ax.plot([0, 100], [0, 100], 'k--', lw=1.2, label='1:1 Line')
-    slope, intercept, r_val, _, _ = stats.linregress(xm, ym)
-    ax.plot([0, 100], [slope*0 + intercept, slope*100 + intercept], 'b-', lw=1.8, label=f'Fit (r={r_val:.3f})')
-    ax.set_title(f'1-HARI: {name} vs AWS\n(r = {r_val:.3f}, MAE = {np.mean(np.abs(ym-xm)):.2f} mm/hari)', fontweight='bold', fontsize=10.5)
-    ax.set_xlabel('AWS IoT Jerukagung (mm/hari)', fontsize=9.5)
-    ax.set_ylabel(f'{name} (mm/hari)', fontsize=9.5)
-    ax.set_xlim(0, 80)
-    ax.set_ylim(0, 80)
-    ax.legend(loc='upper left', fontsize=8)
-
-fig.suptitle('Evaluasi Multi-Temporal Presipitasi: Skala 1-Jam (Atas) vs Skala 1-Hari (Bawah)', fontsize=15, fontweight='bold', y=0.98)
+for idx, (prod_d, col_h) in enumerate(comp_models):
+    ax_h = axes[0, idx]
+    if col_h in df_hourly_master.columns:
+        x_h = df_hourly_master['rain_aws']
+        y_h = df_hourly_master[col_h]
+        mask_h = ~x_h.isna() & ~y_h.isna()
+        xh, yh = x_h[mask_h], y_h[mask_h]
+        ax_h.scatter(xh, yh, alpha=0.15, s=10, color='#0284c7', edgecolors='none')
+        ax_h.plot([0, 40], [0, 40], 'r--', lw=1.2, label='1:1 Line')
+        if len(xh) > 2:
+            m_h, b_h = np.polyfit(xh, yh, 1)
+            ax_h.plot(np.linspace(0, 40, 100), m_h*np.linspace(0, 40, 100) + b_h, 'k-', lw=1.2, label=f'Fit: y={m_h:.2f}x+{b_h:.1f}')
+            r_h, _ = stats.pearsonr(xh, yh)
+            rho_h, _ = stats.spearmanr(xh, yh)
+            mae_h = np.mean(np.abs(yh - xh))
+            ax_h.text(0.05, 0.78, f"r = {r_h:.3f}\nρ = {rho_h:.3f}\nMAE = {mae_h:.2f} mm/h", transform=ax_h.transAxes, fontsize=9.5, bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.85, edgecolor='#cbd5e1'))
+        ax_h.set_title(f"1-Jam: {prod_d} vs AWS", fontweight='bold', fontsize=11)
+        ax_h.set_xlabel('AWS IoT (mm/jam)', fontsize=9.5)
+        ax_h.set_ylabel(f'{prod_d} (mm/jam)', fontsize=9.5)
+        ax_h.set_xlim(0, 40)
+        ax_h.set_ylim(0, 40)
+        ax_h.legend(loc='lower right', fontsize=8)
+    ax_d = axes[1, idx]
+    if prod_d in df_daily_master.columns:
+        x_d = df_daily_master['rain_aws']
+        y_d = df_daily_master[prod_d]
+        mask_d = ~x_d.isna() & ~y_d.isna()
+        xd, yd = x_d[mask_d], y_d[mask_d]
+        ax_d.scatter(xd, yd, alpha=0.45, s=25, color='#d97706', edgecolors='none')
+        ax_d.plot([0, 100], [0, 100], 'r--', lw=1.2, label='1:1 Line')
+        if len(xd) > 2:
+            m_d, b_d = np.polyfit(xd, yd, 1)
+            ax_d.plot(np.linspace(0, 100, 100), m_d*np.linspace(0, 100, 100) + b_d, 'k-', lw=1.2, label=f'Fit: y={m_d:.2f}x+{b_d:.1f}')
+            r_d, _ = stats.pearsonr(xd, yd)
+            rho_d, _ = stats.spearmanr(xd, yd)
+            mae_d = np.mean(np.abs(yd - xd))
+            kge_d = calc_metrics(xd.values, yd.values).get('KGE', 0.0)
+            ax_d.text(0.05, 0.75, f"r = {r_d:.3f}\nρ = {rho_d:.3f}\nMAE = {mae_d:.1f} mm/d\nKGE = {kge_d:.3f}", transform=ax_d.transAxes, fontsize=9.5, bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.85, edgecolor='#cbd5e1'))
+        ax_d.set_title(f"1-Hari: {prod_d} vs AWS", fontweight='bold', fontsize=11)
+        ax_d.set_xlabel('AWS IoT Harian (mm/hari)', fontsize=9.5)
+        ax_d.set_ylabel(f'{prod_d} Harian (mm/hari)', fontsize=9.5)
+        ax_d.set_xlim(0, 100)
+        ax_d.set_ylim(0, 100)
+        ax_d.legend(loc='lower right', fontsize=8)
+fig.suptitle('Perbandingan Diagram Pencar Presipitasi Multi-Skala: Resolusi 1-Jam (Atas) vs Resolusi 1-Hari (Bawah)', fontsize=15, fontweight='bold', y=0.99)
 save_fig('03_perbandingan_scatter_jam_vs_hari.png')
 
 # -------------------------------------------------------------
-# PLOT 04: LONJAKAN AKURASI JAM VS HARI (SEMUA 5 PRODUK)
+# PLOT 04: BAR LONJAKAN AKURASI JAM VS HARI
 # -------------------------------------------------------------
-fig, axes = plt.subplots(1, 2, figsize=(18, 6), dpi=150)
-labels = df_multiscale['Produk'].tolist()
-x = np.arange(len(labels))
+fig, axes = plt.subplots(1, 2, figsize=(16, 6), dpi=150)
+x_idx = np.arange(len(df_multiscale))
 width = 0.35
-
-# Pearson r
-axes[0].bar(x - width/2, df_multiscale['r_Hourly'], width, label='Skala 1-Jam (Hourly)', color='#3498db', alpha=0.85)
-axes[0].bar(x + width/2, df_multiscale['r_Daily'], width, label='Skala 1-Hari (Daily)', color='#2ecc71', alpha=0.85)
-axes[0].set_title('(A) Peningkatan Korelasi Pearson (r) Jam vs Hari', fontweight='bold')
-axes[0].set_xticks(x)
-axes[0].set_xticklabels(labels, fontweight='bold')
-axes[0].set_ylabel('Pearson Correlation (r)')
-axes[0].set_ylim(0, 0.85)
-for i in range(len(labels)):
-    axes[0].text(x[i] - width/2, df_multiscale['r_Hourly'][i] + 0.02, f"{df_multiscale['r_Hourly'][i]:.3f}", ha='center', fontsize=9)
-    axes[0].text(x[i] + width/2, df_multiscale['r_Daily'][i] + 0.02, f"{df_multiscale['r_Daily'][i]:.3f}", ha='center', fontsize=9, fontweight='bold')
-axes[0].legend(loc='upper left')
-
-# Spearman rho
-axes[1].bar(x - width/2, df_multiscale['rho_Hourly'], width, label='Skala 1-Jam (Hourly)', color='#e67e22', alpha=0.85)
-axes[1].bar(x + width/2, df_multiscale['rho_Daily'], width, label='Skala 1-Hari (Daily)', color='#9b59b6', alpha=0.85)
-axes[1].set_title('(B) Peningkatan Korelasi Spearman Rank (ρ) Jam vs Hari', fontweight='bold')
-axes[1].set_xticks(x)
-axes[1].set_xticklabels(labels, fontweight='bold')
-axes[1].set_ylabel('Spearman Rank (ρ)')
-axes[1].set_ylim(0, 0.85)
-for i in range(len(labels)):
-    axes[1].text(x[i] - width/2, df_multiscale['rho_Hourly'][i] + 0.02, f"{df_multiscale['rho_Hourly'][i]:.3f}", ha='center', fontsize=9)
-    axes[1].text(x[i] + width/2, df_multiscale['rho_Daily'][i] + 0.02, f"{df_multiscale['rho_Daily'][i]:.3f}", ha='center', fontsize=9, fontweight='bold')
-axes[1].legend(loc='upper left')
-
-fig.suptitle('Lonjakan Koefisien Korelasi Parametrik & Non-Parametrik Saat Data Diagregasikan ke Skala Harian', fontsize=15, fontweight='bold', y=0.98)
+axes[0].bar(x_idx - width/2, df_multiscale['r_Hourly'], width, label='Resolusi 1-Jam (Hourly)', color='#38bdf8')
+axes[0].bar(x_idx + width/2, df_multiscale['r_Daily'], width, label='Resolusi 1-Hari (Daily)', color='#0284c7')
+axes[0].set_title('(A) Lonjakan Koefisien Korelasi Linier Pearson (r)', fontweight='bold')
+axes[0].set_xticks(x_idx); axes[0].set_xticklabels(df_multiscale['Produk'], fontweight='bold')
+axes[0].set_ylabel('Pearson Correlation (r)'); axes[0].set_ylim(0, 0.85); axes[0].legend()
+for i in x_idx:
+    vh = df_multiscale['r_Hourly'].iloc[i]; vd = df_multiscale['r_Daily'].iloc[i]; jump = ((vd - vh) / vh) * 100 if vh > 0 else 0
+    axes[0].text(i - width/2, vh + 0.015, f"{vh:.2f}", ha='center', fontsize=8.5, fontweight='bold')
+    axes[0].text(i + width/2, vd + 0.015, f"{vd:.2f}\n(+{jump:.0f}%)", ha='center', fontsize=8.5, fontweight='bold', color='#0369a1')
+axes[1].bar(x_idx - width/2, df_multiscale['rho_Hourly'], width, label='Resolusi 1-Jam (Hourly)', color='#fbbf24')
+axes[1].bar(x_idx + width/2, df_multiscale['rho_Daily'], width, label='Resolusi 1-Hari (Daily)', color='#d97706')
+axes[1].set_title('(B) Lonjakan Korelasi Non-Parametrik Spearman (ρ)', fontweight='bold')
+axes[1].set_xticks(x_idx); axes[1].set_xticklabels(df_multiscale['Produk'], fontweight='bold')
+axes[1].set_ylabel('Spearman Rank (ρ)'); axes[1].set_ylim(0, 0.85); axes[1].legend()
+for i in x_idx:
+    vh = df_multiscale['rho_Hourly'].iloc[i]; vd = df_multiscale['rho_Daily'].iloc[i]; jump = ((vd - vh) / vh) * 100 if vh > 0 else 0
+    axes[1].text(i - width/2, vh + 0.015, f"{vh:.2f}", ha='center', fontsize=8.5, fontweight='bold')
+    axes[1].text(i + width/2, vd + 0.015, f"{vd:.2f}\n(+{jump:.0f}%)", ha='center', fontsize=8.5, fontweight='bold', color='#b45309')
+fig.suptitle('Efek Agregasi Temporal: Lonjakan Akurasi Korelasi Jam-jaman vs Harian terhadap Stasiun AWS IoT', fontsize=14, fontweight='bold', y=0.98)
 save_fig('04_bar_lonjakan_akurasi_jam_vs_hari.png')
 
 # -------------------------------------------------------------
-# PLOT 05: SIKLUS DIURNAL 24-JAM CUACA & HUJAN (SEMUA SUMBER DATA)
+# PLOT 05: SIKLUS DIURNAL 24-JAM CUACA & HUJAN
 # -------------------------------------------------------------
-df_hourly['hour_local'] = (df_hourly.index.hour + 7) % 24  # WIB
-num_cols = [c for c in df_hourly.columns if df_hourly[c].dtype in [np.float64, np.float32, np.int64, np.int32]]
-diurnal = df_hourly.groupby('hour_local')[num_cols].mean()
-
-fig, axes = plt.subplots(2, 2, figsize=(18, 12), dpi=150)
-hours = np.arange(24)
-
-# (A) Suhu
-axes[0, 0].plot(hours, diurnal['temp_aws'], 'ro-', lw=2.2, label='AWS IoT Jerukagung')
-if 'temp_era5' in diurnal.columns:
-    axes[0, 0].plot(hours, diurnal['temp_era5'], 'bs--', lw=1.8, label='ECMWF ERA5 Global')
-if 'temp_era5_land' in diurnal.columns:
-    axes[0, 0].plot(hours, diurnal['temp_era5_land'], color='#e377c2', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
-axes[0, 0].set_title('(A) Siklus Diurnal Suhu Udara Permukaan (°C)', fontweight='bold')
-axes[0, 0].set_xlabel('Jam Lokal (WIB)')
-axes[0, 0].set_ylabel('Suhu (°C)')
-axes[0, 0].set_xticks(hours)
-axes[0, 0].legend()
-
-# (B) Kelembapan Relatif (RH)
-axes[0, 1].plot(hours, diurnal['rh_aws'], 'go-', lw=2.2, label='AWS IoT Jerukagung')
-if 'rh_era5' in diurnal.columns:
-    axes[0, 1].plot(hours, diurnal['rh_era5'], 'ms--', lw=1.8, label='ECMWF ERA5 Global')
-if 'rh_era5_land' in diurnal.columns:
-    axes[0, 1].plot(hours, diurnal['rh_era5_land'], color='#8c564b', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
-axes[0, 1].set_title('(B) Siklus Diurnal Kelembaban Relatif (RH %)', fontweight='bold')
-axes[0, 1].set_xlabel('Jam Lokal (WIB)')
-axes[0, 1].set_ylabel('RH (%)')
-axes[0, 1].set_xticks(hours)
-axes[0, 1].legend()
-
-# (C) Presipitasi Jam-jaman (Semua 6 Dataset Jam-jaman)
-axes[1, 0].plot(hours, diurnal['rain_aws'], 'ko-', lw=2.5, label='AWS IoT Jerukagung (Ground Truth)')
-if 'rain_imerg' in diurnal.columns:
-    axes[1, 0].plot(hours, diurnal['rain_imerg'], color='#d62728', marker='d', linestyle='--', lw=1.8, label='NASA GPM IMERG')
-if 'rain_gsmap' in diurnal.columns:
-    axes[1, 0].plot(hours, diurnal['rain_gsmap'], color='#ff7f0e', marker='^', linestyle='--', lw=1.8, label='JAXA GSMaP')
-if 'rain_era5' in diurnal.columns:
-    axes[1, 0].plot(hours, diurnal['rain_era5'], color='#8c564b', marker='*', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
-if 'rain_era5_land' in diurnal.columns:
-    axes[1, 0].plot(hours, diurnal['rain_era5_land'], color='#e377c2', marker='x', linestyle='--', lw=1.8, label='ECMWF ERA5-Land')
-if 'rain_oya' in diurnal.columns:
-    axes[1, 0].plot(hours, diurnal['rain_oya'], color='#2ca02c', marker='s', linestyle=':', lw=1.8, label='Pos Hujan Oya (Manual)')
-
-axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Konvektif Sore 15:00–18:00 WIB)', fontweight='bold')
-axes[1, 0].set_xlabel('Jam Lokal (WIB)')
-axes[1, 0].set_ylabel('Intensitas Rata-Rata (mm/jam)')
-axes[1, 0].set_xticks(hours)
-axes[1, 0].legend(ncol=2, fontsize=8.5)
-
-# (D) Tekanan Permukaan
-axes[1, 1].plot(hours, diurnal['pres_aws'], color='#008080', marker='o', lw=2.2, label='AWS IoT Jerukagung')
-if 'pres_era5' in diurnal.columns:
-    axes[1, 1].plot(hours, diurnal['pres_era5'], color='#d95f02', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
-if 'pres_era5_land' in diurnal.columns:
-    axes[1, 1].plot(hours, diurnal['pres_era5_land'], color='#7570b3', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
-axes[1, 1].set_title('(D) Pasang Surut Atmosferik Semidiurnal Tekanan (hPa)', fontweight='bold')
-axes[1, 1].set_xlabel('Jam Lokal (WIB)')
-axes[1, 1].set_ylabel('Tekanan (hPa)')
-axes[1, 1].set_xticks(hours)
-axes[1, 1].legend()
-
+diurnal = df_hourly_master.groupby((df_hourly_master.index.hour + 7) % 24).mean(numeric_only=True)
+fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=150)
+hours = diurnal.index.values
+axes[0, 0].plot(hours, diurnal['temp_aws'], color='#d95f02', marker='o', lw=2.2, label='AWS IoT Jerukagung')
+if 'temp_era5' in diurnal.columns: axes[0, 0].plot(hours, diurnal['temp_era5'], color='#1f77b4', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'temp_era5_land' in diurnal.columns: axes[0, 0].plot(hours, diurnal['temp_era5_land'], color='#2ca02c', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
+axes[0, 0].set_title('(A) Siklus Diurnal Suhu Udara Permukaan (°C)', fontweight='bold'); axes[0, 0].set_xlabel('Jam Lokal (WIB)'); axes[0, 0].set_ylabel('Suhu (°C)'); axes[0, 0].set_xticks(hours); axes[0, 0].legend()
+axes[0, 1].plot(hours, diurnal['rh_aws'], color='#2b83ba', marker='o', lw=2.2, label='AWS IoT Jerukagung')
+if 'rh_era5' in diurnal.columns: axes[0, 1].plot(hours, diurnal['rh_era5'], color='#fdae61', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rh_era5_land' in diurnal.columns: axes[0, 1].plot(hours, diurnal['rh_era5_land'], color='#abdda4', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
+axes[0, 1].set_title('(B) Siklus Diurnal Kelembaban Relatif / RH (%)', fontweight='bold'); axes[0, 1].set_xlabel('Jam Lokal (WIB)'); axes[0, 1].set_ylabel('RH (%)'); axes[0, 1].set_xticks(hours); axes[0, 1].legend()
+axes[1, 0].plot(hours, diurnal['rain_aws'], color='#0f172a', marker='o', lw=2.5, label='AWS IoT Jerukagung')
+if 'rain_imerg' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_imerg'], color='#d62728', marker='d', linestyle='--', lw=1.8, label='NASA GPM IMERG')
+if 'rain_gsmap' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_gsmap'], color='#ff7f0e', marker='^', linestyle='--', lw=1.8, label='JAXA GSMaP')
+if 'rain_era5' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_era5'], color='#8c564b', marker='*', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rain_era5_land' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_era5_land'], color='#e377c2', marker='x', linestyle='--', lw=1.8, label='ECMWF ERA5-Land')
+if 'rain_oya' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_oya'], color='#2ca02c', marker='s', linestyle=':', lw=1.8, label='Pos Hujan Oya')
+axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Konvektif Sore 15:00–18:00 WIB)', fontweight='bold'); axes[1, 0].set_xlabel('Jam Lokal (WIB)'); axes[1, 0].set_ylabel('Intensitas Rata-Rata (mm/jam)'); axes[1, 0].set_xticks(hours); axes[1, 0].legend(ncol=2, fontsize=8.5)
 fig.suptitle('Karakteristik Siklus Diurnal 24-Jam Cuaca & Hujan di Stasiun Jerukagung Kebumen', fontsize=15, fontweight='bold', y=0.98)
 save_fig('05_siklus_diurnal_24jam_cuaca_hujan.png')
 
 # -------------------------------------------------------------
-# PLOT 06: SKOR DETEKSI KONTINGENSI DETEKSI HUJAN HARIAN (SEMUA 8 PRODUK)
+# PLOT 06: SKOR DETEKSI KONTINGENSI DETEKSI HUJAN HARIAN (SEMUA 9 PRODUK)
 # -------------------------------------------------------------
-thresholds_d = [0.1, 1.0, 5.0, 10.0, 20.0, 50.0]
-sat_colors_8 = {
-    'CHIRPS_RNL': '#1f77b4',
-    'CHIRPS_SAT': '#3498db',
-    'CHIRPS_FNL': '#2ca02c',
-    'GSMaP': '#ff7f0e',
-    'IMERG': '#d62728',
-    'PERSIANN': '#9467bd',
-    'ERA5': '#8c564b',
-    'ERA5_LAND': '#e377c2'
-}
-contingency_d = {col: {'CSI': [], 'POD': [], 'FAR': [], 'HSS': []} for col in sat_cols}
-
-for th in thresholds_d:
-    obs_rain = (df_daily_master['rain_aws'] >= th)
-    for col in contingency_d.keys():
-        sim_rain = (df_daily_master[col] >= th)
-        valid = ~df_daily_master['rain_aws'].isna() & ~df_daily_master[col].isna()
-        o, s = obs_rain[valid], sim_rain[valid]
-        hits = np.sum(o & s)
-        misses = np.sum(o & ~s)
-        false_alarms = np.sum(~o & s)
-        correct_negatives = np.sum(~o & ~s)
-        
-        pod = hits / (hits + misses) if (hits + misses) > 0 else np.nan
-        far = false_alarms / (hits + false_alarms) if (hits + false_alarms) > 0 else np.nan
-        csi = hits / (hits + misses + false_alarms) if (hits + misses + false_alarms) > 0 else np.nan
-        total = hits + misses + false_alarms + correct_negatives
-        exp_corr = ((hits + misses)*(hits + false_alarms) + (correct_negatives + misses)*(correct_negatives + false_alarms)) / total if total > 0 else 0
-        hss = (hits + correct_negatives - exp_corr) / (total - exp_corr) if (total - exp_corr) != 0 else np.nan
-        
-        contingency_d[col]['CSI'].append(csi)
-        contingency_d[col]['POD'].append(pod)
-        contingency_d[col]['FAR'].append(far)
-        contingency_d[col]['HSS'].append(hss)
-
-fig, axes = plt.subplots(2, 2, figsize=(18, 12), dpi=150)
-th_labels = [f'{t} mm' for t in thresholds_d]
-
-for col in contingency_d.keys():
-    c = sat_colors_8.get(col, '#333333')
-    axes[0, 0].plot(th_labels, contingency_d[col]['CSI'], marker='o', lw=1.8, label=col, color=c)
-    axes[0, 1].plot(th_labels, contingency_d[col]['POD'], marker='s', lw=1.8, label=col, color=c)
-    axes[1, 0].plot(th_labels, contingency_d[col]['FAR'], marker='^', lw=1.8, label=col, color=c)
-    axes[1, 1].plot(th_labels, contingency_d[col]['HSS'], marker='d', lw=1.8, label=col, color=c)
-
-axes[0, 0].set_title('(A) Critical Success Index (CSI) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
-axes[0, 0].set_ylim(0, 1.0)
-axes[0, 0].legend(ncol=2, fontsize=8.5)
-
-axes[0, 1].set_title('(B) Probability of Detection (POD) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
-axes[0, 1].set_ylim(0, 1.0)
-axes[0, 1].legend(ncol=2, fontsize=8.5)
-
-axes[1, 0].set_title('(C) False Alarm Ratio (FAR) ↓ Lebih Rendah Lebih Baik', fontweight='bold')
-axes[1, 0].set_ylim(0, 1.0)
-axes[1, 0].legend(ncol=2, fontsize=8.5)
-
-axes[1, 1].set_title('(D) Heidke Skill Score (HSS) ↑ Lebih Tinggi Lebih Baik', fontweight='bold')
-axes[1, 1].set_ylim(0, 1.0)
-axes[1, 1].legend(ncol=2, fontsize=8.5)
-
-fig.suptitle('Skor Deteksi Kontingensi Kejadian Hujan Harian Berdasarkan Ambang Batas: 8 Produk vs AWS IoT', fontsize=15, fontweight='bold', y=0.98)
+thresholds_d = [0.1, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0, 50.0]
+sat_colors_8 = {'CHIRPS_RNL': '#1f77b4', 'CHIRPS_SAT': '#3498db', 'CHIRPS_FNL': '#9b59b6', 'GSMaP': '#ff7f0e', 'IMERG': '#d62728', 'PERSIANN': '#2ca02c', 'ERA5': '#8c564b', 'ERA5_LAND': '#e377c2', 'OYA': '#16a34a'}
+fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=150)
+for p in all_kebumen_cols:
+    if p not in df_daily_master.columns: continue
+    c_color = sat_colors_8.get(p, '#333333')
+    scores_list = []
+    for th in thresholds_d:
+        sc = calc_contingency(df_daily_master['rain_aws'].values, df_daily_master[p].values, th=th)
+        scores_list.append(sc)
+    df_sc = pd.DataFrame(scores_list)
+    axes[0, 0].plot(thresholds_d, df_sc['CSI'], marker='o', label=p, color=c_color, lw=1.8)
+    axes[0, 1].plot(thresholds_d, df_sc['POD'], marker='s', label=p, color=c_color, lw=1.8)
+    axes[1, 0].plot(thresholds_d, df_sc['FAR'], marker='^', label=p, color=c_color, lw=1.8)
+    axes[1, 1].plot(thresholds_d, df_sc['HSS'], marker='d', label=p, color=c_color, lw=1.8)
+axes[0, 0].set_title('(A) Critical Success Index (CSI) vs Ambang Batas', fontweight='bold'); axes[0, 0].set_xlabel('Ambang Batas Hujan Harian (mm/hari)'); axes[0, 0].set_ylabel('CSI (0 s.d. 1)'); axes[0, 0].legend(fontsize=8, ncol=2); axes[0, 0].grid(True, linestyle=':', alpha=0.6)
+axes[0, 1].set_title('(B) Probability of Detection (POD / Hit Rate) vs Ambang Batas', fontweight='bold'); axes[0, 1].set_xlabel('Ambang Batas Hujan Harian (mm/hari)'); axes[0, 1].set_ylabel('POD (0 s.d. 1)'); axes[0, 1].legend(fontsize=8, ncol=2); axes[0, 1].grid(True, linestyle=':', alpha=0.6)
+axes[1, 0].set_title('(C) False Alarm Ratio (FAR) vs Ambang Batas', fontweight='bold'); axes[1, 0].set_xlabel('Ambang Batas Hujan Harian (mm/hari)'); axes[1, 0].set_ylabel('FAR (0 s.d. 1)'); axes[1, 0].legend(fontsize=8, ncol=2); axes[1, 0].grid(True, linestyle=':', alpha=0.6)
+axes[1, 1].set_title('(D) Heidke Skill Score (HSS) vs Ambang Batas', fontweight='bold'); axes[1, 1].set_xlabel('Ambang Batas Hujan Harian (mm/hari)'); axes[1, 1].set_ylabel('HSS (-1 s.d. 1)'); axes[1, 1].legend(fontsize=8, ncol=2); axes[1, 1].grid(True, linestyle=':', alpha=0.6)
+fig.suptitle('Skor Deteksi Kontingensi Kejadian Hujan Harian terhadap Stasiun AWS IoT (Semua Produk)', fontsize=15, fontweight='bold', y=0.98)
 save_fig('06_skor_kontingensi_deteksi_hujan_harian.png')
 
 # -------------------------------------------------------------
-# PLOT 07: DOUBLE MASS CURVE KUMULATIF HARIAN (SEMUA 8 PRODUK)
+# PLOT 07: KURVA MASSA GANDA (DOUBLE-MASS CURVE) HARIAN (SEMUA 9 PRODUK)
 # -------------------------------------------------------------
 fig, ax = plt.subplots(figsize=(12, 8), dpi=150)
-cum_aws = df_daily_master['rain_aws'].cumsum()
-
-for sat in sat_cols:
-    cum_sat = df_daily_master[sat].cumsum()
-    c = sat_colors_8.get(sat, '#333333')
-    ax.plot(cum_aws, cum_sat, label=f'{sat}', color=c, lw=2.0)
-
-ax.plot([0, cum_aws.max()], [0, cum_aws.max()], 'k--', label='Ideal 1:1 Line', lw=1.5)
-ax.set_title('Kurva Massa Ganda (Double-Mass Curve) Akumulasi Hujan Harian: 8 Produk vs AWS IoT', fontsize=14, fontweight='bold')
-ax.set_xlabel('Akumulasi Curah Hujan AWS IoT Jerukagung (mm)')
-ax.set_ylabel('Akumulasi Curah Hujan Satelit / Reanalisis (mm)')
-ax.legend(loc='upper left', ncol=2, fontsize=9)
+df_sorted_dates = df_daily_master.sort_index()
+cum_aws = df_sorted_dates['rain_aws'].cumsum()
+for p in all_kebumen_cols:
+    if p not in df_sorted_dates.columns: continue
+    cum_sat = df_sorted_dates[p].cumsum()
+    ax.plot(cum_aws, cum_sat, label=p, lw=2.0, color=sat_colors_8.get(p, '#333333'))
+max_val = max(cum_aws.max(), max([df_sorted_dates[p].cumsum().max() for p in all_kebumen_cols if p in df_sorted_dates.columns]))
+ax.plot([0, max_val], [0, max_val], 'k--', lw=1.5, label='Garis Konsistensi 1:1')
+ax.set_title('Kurva Massa Ganda (Double-Mass Curve) Akumulasi Curah Hujan Harian vs AWS IoT Jerukagung', fontsize=14, fontweight='bold')
+ax.set_xlabel('Akumulasi Curah Hujan AWS IoT Jerukagung (mm)', fontweight='bold')
+ax.set_ylabel('Akumulasi Curah Hujan Produk Satelit & Reanalisis (mm)', fontweight='bold')
+ax.legend(fontsize=9, loc='upper left'); ax.grid(True, linestyle=':', alpha=0.6)
 save_fig('07_kurva_massa_ganda_harian.png')
 
 # -------------------------------------------------------------
@@ -741,9 +665,9 @@ print("✅ File HTML Laporan berhasil dibuat di:", html_path)
 # Compile PDF using pdflatex
 pdf_path = os.path.join(target_folder, 'Laporan_Analisis_Curah_Hujan.pdf')
 try:
-    cmd = ['pdflatex', '-interaction=nonstopmode', f'-output-directory={target_folder}', tex_path]
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cmd = ['pdflatex', '-interaction=nonstopmode', 'Laporan_Analisis_Curah_Hujan.tex']
+    subprocess.run(cmd, cwd=target_folder, check=True, timeout=45, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(cmd, cwd=target_folder, check=True, timeout=45, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     print(f"✅ File PDF Laporan (LaTeX pdflatex) berhasil dibuat di: {pdf_path} (size: {os.path.getsize(pdf_path):,} bytes)")
 except Exception as e:
     print(f"⚠️ Kompilasi pdflatex gagal ({e}), menggunakan msedge headless...")
@@ -759,7 +683,7 @@ except Exception as e:
         f'--print-to-pdf={pdf_path}',
         html_path
     ]
-    subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True, timeout=30)
     print(f"✅ File PDF Laporan berhasil dibuat di: {pdf_path} (size: {os.path.getsize(pdf_path):,} bytes)")
 
 # -------------------------------------------------------------
