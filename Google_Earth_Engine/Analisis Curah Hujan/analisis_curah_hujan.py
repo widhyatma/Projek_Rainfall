@@ -70,9 +70,9 @@ df_imerg_h['Date'] = pd.to_datetime(df_imerg_h['datetime_utc'])
 df_imerg_hourly = df_imerg_h.set_index('Date')[['precipitation']].resample('1h').mean().rename(columns={'precipitation': 'rain_imerg'})
 
 # 4. ERA5 Hourly
-df_era5_h = pd.read_csv(os.path.join(data_dir, 'ERA5_Hourly_All_Requested_Features_2000_2026.csv'))
+df_era5_h = pd.read_csv(os.path.join(data_dir, 'ERA5_Hourly_All_Requested_Features_2000_2026.csv'), usecols=['datetime_utc', 'temperature', 'humidity', 'dewpoint', 'rainrate', 'pressure'])
 df_era5_h['Date'] = pd.to_datetime(df_era5_h['datetime_utc'])
-df_era5_hourly = df_era5_h.set_index('Date')[['temperature', 'humidity', 'dewpoint', 'rainrate', 'pressure', 'era5_u_wind', 'era5_v_wind', 'era5_cape', 'era5_tcwv', 'era5_moisture_div', 'era5_direct_rad']].rename(columns={
+df_era5_hourly = df_era5_h.set_index('Date')[['temperature', 'humidity', 'dewpoint', 'rainrate', 'pressure']].rename(columns={
     'temperature': 'temp_era5', 'humidity': 'rh_era5', 'dewpoint': 'dew_era5', 'rainrate': 'rain_era5', 'pressure': 'pres_era5'
 })
 
@@ -378,21 +378,61 @@ save_fig('04_bar_lonjakan_akurasi_jam_vs_hari.png')
 diurnal = df_hourly_master.groupby((df_hourly_master.index.hour + 7) % 24).mean(numeric_only=True)
 fig, axes = plt.subplots(2, 2, figsize=(16, 12), dpi=150)
 hours = diurnal.index.values
+
+# (A) Suhu Udara
 axes[0, 0].plot(hours, diurnal['temp_aws'], color='#d95f02', marker='o', lw=2.2, label='AWS IoT Jerukagung')
-if 'temp_era5' in diurnal.columns: axes[0, 0].plot(hours, diurnal['temp_era5'], color='#1f77b4', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
-if 'temp_era5_land' in diurnal.columns: axes[0, 0].plot(hours, diurnal['temp_era5_land'], color='#2ca02c', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
-axes[0, 0].set_title('(A) Siklus Diurnal Suhu Udara Permukaan (°C)', fontweight='bold'); axes[0, 0].set_xlabel('Jam Lokal (WIB)'); axes[0, 0].set_ylabel('Suhu (°C)'); axes[0, 0].set_xticks(hours); axes[0, 0].legend()
+if 'temp_era5' in diurnal.columns: 
+    axes[0, 0].plot(hours, diurnal['temp_era5'], color='#1f77b4', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'temp_era5_land' in diurnal.columns: 
+    axes[0, 0].plot(hours, diurnal['temp_era5_land'], color='#2ca02c', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
+axes[0, 0].set_title('(A) Siklus Diurnal Suhu Udara Permukaan (°C)', fontweight='bold')
+axes[0, 0].set_xlabel('Jam Lokal (WIB)')
+axes[0, 0].set_ylabel('Suhu (°C)')
+axes[0, 0].set_xticks(hours)
+axes[0, 0].legend()
+
+# (B) Kelembaban Relatif
 axes[0, 1].plot(hours, diurnal['rh_aws'], color='#2b83ba', marker='o', lw=2.2, label='AWS IoT Jerukagung')
-if 'rh_era5' in diurnal.columns: axes[0, 1].plot(hours, diurnal['rh_era5'], color='#fdae61', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
-if 'rh_era5_land' in diurnal.columns: axes[0, 1].plot(hours, diurnal['rh_era5_land'], color='#abdda4', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
-axes[0, 1].set_title('(B) Siklus Diurnal Kelembaban Relatif / RH (%)', fontweight='bold'); axes[0, 1].set_xlabel('Jam Lokal (WIB)'); axes[0, 1].set_ylabel('RH (%)'); axes[0, 1].set_xticks(hours); axes[0, 1].legend()
-axes[1, 0].plot(hours, diurnal['rain_aws'], color='#0f172a', marker='o', lw=2.5, label='AWS IoT Jerukagung')
-if 'rain_imerg' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_imerg'], color='#d62728', marker='d', linestyle='--', lw=1.8, label='NASA GPM IMERG')
-if 'rain_gsmap' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_gsmap'], color='#ff7f0e', marker='^', linestyle='--', lw=1.8, label='JAXA GSMaP')
-if 'rain_era5' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_era5'], color='#8c564b', marker='*', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
-if 'rain_era5_land' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_era5_land'], color='#e377c2', marker='x', linestyle='--', lw=1.8, label='ECMWF ERA5-Land')
-if 'rain_oya' in diurnal.columns: axes[1, 0].plot(hours, diurnal['rain_oya'], color='#2ca02c', marker='s', linestyle=':', lw=1.8, label='Pos Hujan Oya')
-axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Konvektif Sore 15:00–18:00 WIB)', fontweight='bold'); axes[1, 0].set_xlabel('Jam Lokal (WIB)'); axes[1, 0].set_ylabel('Intensitas Rata-Rata (mm/jam)'); axes[1, 0].set_xticks(hours); axes[1, 0].legend(ncol=2, fontsize=8.5)
+if 'rh_era5' in diurnal.columns: 
+    axes[0, 1].plot(hours, diurnal['rh_era5'], color='#fdae61', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rh_era5_land' in diurnal.columns: 
+    axes[0, 1].plot(hours, diurnal['rh_era5_land'], color='#abdda4', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
+axes[0, 1].set_title('(B) Siklus Diurnal Kelembaban Relatif / RH (%)', fontweight='bold')
+axes[0, 1].set_xlabel('Jam Lokal (WIB)')
+axes[0, 1].set_ylabel('RH (%)')
+axes[0, 1].set_xticks(hours)
+axes[0, 1].legend()
+
+# (C) Presipitasi Jam-jaman (Semua 6 Dataset Jam-jaman)
+axes[1, 0].plot(hours, diurnal['rain_aws'], color='#0f172a', marker='o', lw=2.5, label='AWS IoT Jerukagung (Ground Truth)')
+if 'rain_imerg' in diurnal.columns: 
+    axes[1, 0].plot(hours, diurnal['rain_imerg'], color='#d62728', marker='d', linestyle='--', lw=1.8, label='NASA GPM IMERG')
+if 'rain_gsmap' in diurnal.columns: 
+    axes[1, 0].plot(hours, diurnal['rain_gsmap'], color='#ff7f0e', marker='^', linestyle='--', lw=1.8, label='JAXA GSMaP')
+if 'rain_era5' in diurnal.columns: 
+    axes[1, 0].plot(hours, diurnal['rain_era5'], color='#8c564b', marker='*', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'rain_era5_land' in diurnal.columns: 
+    axes[1, 0].plot(hours, diurnal['rain_era5_land'], color='#e377c2', marker='x', linestyle='--', lw=1.8, label='ECMWF ERA5-Land')
+if 'rain_oya' in diurnal.columns: 
+    axes[1, 0].plot(hours, diurnal['rain_oya'], color='#16a34a', marker='s', linestyle=':', lw=1.8, label='Satelit OYA')
+axes[1, 0].set_title('(C) Siklus Diurnal Curah Hujan (Puncak Konvektif Sore 15:00–18:00 WIB)', fontweight='bold')
+axes[1, 0].set_xlabel('Jam Lokal (WIB)')
+axes[1, 0].set_ylabel('Intensitas Rata-Rata (mm/jam)')
+axes[1, 0].set_xticks(hours)
+axes[1, 0].legend(ncol=2, fontsize=8.5)
+
+# (D) Tekanan Permukaan
+axes[1, 1].plot(hours, diurnal['pres_aws'], color='#008080', marker='o', lw=2.2, label='AWS IoT Jerukagung')
+if 'pres_era5' in diurnal.columns: 
+    axes[1, 1].plot(hours, diurnal['pres_era5'], color='#d95f02', marker='s', linestyle='--', lw=1.8, label='ECMWF ERA5 Global')
+if 'pres_era5_land' in diurnal.columns: 
+    axes[1, 1].plot(hours, diurnal['pres_era5_land'], color='#7570b3', marker='^', linestyle='-.', lw=1.8, label='ECMWF ERA5-Land')
+axes[1, 1].set_title('(D) Pasang Surut Atmosferik Semidiurnal Tekanan (hPa)', fontweight='bold')
+axes[1, 1].set_xlabel('Jam Lokal (WIB)')
+axes[1, 1].set_ylabel('Tekanan (hPa)')
+axes[1, 1].set_xticks(hours)
+axes[1, 1].legend()
+
 fig.suptitle('Karakteristik Siklus Diurnal 24-Jam Cuaca & Hujan di Stasiun Jerukagung Kebumen', fontsize=15, fontweight='bold', y=0.98)
 save_fig('05_siklus_diurnal_24jam_cuaca_hujan.png')
 
