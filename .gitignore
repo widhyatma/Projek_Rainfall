@@ -10,6 +10,7 @@
 *.synctex.gz
 *.toc
 *.synctex
+*.fdb_latexmk
 *.gz
 __pycache__/
 /Analisis_Meteorologi/Analisis_Bulanan/
@@ -22,21 +23,18 @@ __pycache__/
 /Analisis_Meteorologi/datalogs/
 /Analisis_Meteorologi/Hasil_Analisis_Hujan/
 /Analisis_Meteorologi/.cache.sqlite
-/Analisis_Meteorologi/__pycache__/
 /Analisis_Meteorologi/scratch/
 /DeepLearning_Meteorologi/outputs/
-/DeepLearning_Meteorologi/__pycache__/
 /DeepLearning_Satelit/outputs/
-/DeepLearning_Satelit/__pycache__/
 /Model_Imputasi/outputs/
-/Model_Imputasi/__pycache__/
 /DeepLearning_Satelit/outputs_lstm/
 /DeepLearning_Satelit/outputs_xgboost/
 /Google_Earth_Engine/ClimateEngineData
 /Google_Earth_Engine/Data_Satelit
-/Google_Earth_Engine/Hasil_Analisis
+/Google_Earth_Engine/Analisis Curah hujan/Hasil_Analisis
 /Google_Earth_Engine/Hasil_Analisis_Hujan
-/Google_Earth_Engine/Hasil_Analisis_Harian_2004_2025
+/Google_Earth_Engine/Analisis_Data_Presipitasi_Satelit/Hasil_Analisis_Harian
+/Google_Earth_Engine/Analisis_Data_Satelit_dengan_AWS/Hasil_Analisis
 /DeepLearning_Satelit/results_xgboost
 /DeepLearning_Satelit/results_lstm
 /DeepLearning_Satelit/outputs_inference

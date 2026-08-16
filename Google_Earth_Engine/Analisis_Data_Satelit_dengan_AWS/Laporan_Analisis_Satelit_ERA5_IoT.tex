@@ -1,0 +1,465 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- ARXIV PREPRINT PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[indonesian]{babel}
+\usepackage[margin=1in, top=1.1in, bottom=1.1in, headheight=25pt]{geometry}
+\usepackage{amsmath, amsfonts, amssymb, bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{fancyhdr}
+\usepackage[nopatch=footnote]{microtype}
+\usepackage{authblk}
+\usepackage{enumitem}
+
+% --- COLOR DEFINITIONS ---
+\definecolor{arxivblue}{RGB}{0, 51, 153}
+\definecolor{headergray}{RGB}{90, 100, 110}
+\definecolor{darkslate}{RGB}{30, 41, 59}
+
+% --- HYPERLINK SETUP ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=arxivblue,
+    citecolor=arxivblue,
+    urlcolor=arxivblue,
+    pdftitle={Analisis Satelit, Reanalisis ERA5, dan Sensor AWS IoT Jerukagung},
+    pdfauthor={Evan Alif Widhyatma}
+}
+
+% --- GRAPHICS PATH ---
+\graphicspath{
+    {./Hasil_Analisis/}
+    {Hasil_Analisis/}
+    {./}
+}
+
+% --- ARXIV PREPRINT HEADER & FOOTER ---
+\setlength{\headheight}{25pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsf{\color{headergray}\textbf{A PREPRINT} --- SATELIT, ERA5, \& AWS IOT JERUKAGUNG}}
+\fancyhead[R]{\small\textsf{\color{headergray}\thepage}}
+\fancyfoot[C]{\footnotesize\textsf{\color{headergray}Stasiun Jerukagung, Kabupaten Kebumen, Jawa Tengah}}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- SECTION STYLING ---
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{arxivblue}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{darkslate}}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\small\bfseries\color{darkslate}}{\thesubsubsection}{0.5em}{}
+
+% --- TITLE & AUTHOR ---
+\title{\vspace{-1.2cm}\textbf{\Large Analisis Komparatif Multiproduk Presipitasi Satelit (GSMaP \& GPM IMERG), Reanalisis ECMWF ERA5, dan Sensor AWS IoT Jerukagung: Evaluasi Multimetrik Error, Korelasi Pearson--Spearman, Uji Non-Parametrik, serta Karakteristik Iklim 20 Tahun}}
+
+\author[1]{\textbf{Evan Alif Widhyatma}\thanks{Email korespondensi: \texttt{evanalifwidhyatma@gmail.com}}}
+\affil[1]{\small Program Studi Teknik Informatika / Sains Data, Peminatan Kecerdasan Buatan Terapan Hidrometeorologi}
+
+\date{\small\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent Laporan teknis dan saintifik ini menyajikan evaluasi hidrometeorologi komprehensif perbandingan data curah hujan dan variabel meteorologi permukaan antara produk satelit presipitasi (\textit{JAXA GSMaP Gauge-Calibrated}, \textit{NASA GPM IMERG Final Run V07}), reanalisis \textit{ECMWF ERA5 Single Levels}, serta stasiun pengamatan otomatis \textit{AWS IoT Jerukagung}, Kabupaten Kebumen. Analisis dilakukan pada dua domain waktu: (1) evaluasi sinkron resolusi per jam (\textit{1-hour interval}) periode 1 Januari 2025 hingga 31 Mei 2026 ($N = 12.384$ jam data valid) dan (2) rekonstruksi variabilitas iklim jangka panjang 21 tahun (2005--2025 / 252 bulan). Evaluasi mencakup diagram pencar (\textit{scatter plot matrix} \& \textit{hexbin}), matriks korelasi linier Pearson ($r$) dan rank non-parametrik Spearman ($\rho$), evaluasi multimetrik error (\textit{Mean Bias Error} / MBE, \textit{Root Mean Square Error} / RMSE, \textit{Mean Absolute Error} / MAE), diagram kotak (\textit{boxplot}) sebaran residual galat, simulasi ambang batas deteksi hujan ($0{,}2\text{ mm/jam}$), uji signifikansi statistik \textit{Wilcoxon Signed-Rank} dan \textit{Mann-Whitney U}, analisis korelasi 13 fitur fisik atmosferik ERA5 untuk \textit{Deep Learning Pre-Training}, serta analisis anomali klimatologi monsunal. Hasil evaluasi membuktikan bahwa NASA GPM IMERG menghasilkan korelasi linier tertinggi terhadap AWS IoT ($r = 0{,}410$), JAXA GSMaP memiliki dispersi galat absolut dan kuadratik terendah ($\text{MAE} = 0{,}5252\text{ mm/jam}$, $\text{RMSE} = 1{,}4997\text{ mm/jam}$, $\text{MBE} = -0{,}0168\text{ mm/jam}$), sedangkan ERA5 sangat unggul dalam merekonstruksi dinamika suhu, tekanan, dan kelembapan permukaan.
+\end{abstract}
+
+\vspace{0.2cm}
+\noindent\textbf{\textit{Keywords:}} Korelasi Pearson, Korelasi Spearman, Mean Bias Error (MBE), Mean Absolute Error (MAE), Root Mean Square Error (RMSE), JAXA GSMaP, NASA GPM IMERG, ECMWF ERA5, AWS IoT Jerukagung, Wilcoxon Signed-Rank, Pre-Training Deep Learning.
+
+\vspace{0.4cm}
+\hrule
+\vspace{0.4cm}
+
+% =============================================================================
+\section{Pendahuluan \& Metodologi Penyelarasan Data}
+% =============================================================================
+Pengukuran presipitasi dan dinamika atmosfer pada skala lokal memerlukan integrasi antara instrumen darat (\textit{in-situ}) dengan penginderaan jauh satelit dan model reanalisis numerik. Wilayah Kebumen, Jawa Tengah, memiliki dinamika hidrometeorologis tropis yang dipengaruhi oleh sirkulasi monsun Asia-Australia serta interaksi orografis pesisir selatan Jawa.
+
+\subsection{Karakteristik Dataset}
+Empat sumber data utama yang diintegrasikan dalam penelitian ini disajikan pada Tabel \ref{tab:data_specs}:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{JAXA GSMaP (Global Satellite Mapping of Precipitation):} Produk presipitasi berbasis gelombang mikro pasif (PMW) dan inframerah (IR) terkalibrasi penakar hujan darat (\textit{Gauge-Calibrated}).
+    \item \textbf{NASA GPM IMERG (Integrated Multi-satellitE Retrievals for GPM):} Produk presipitasi \textit{Final Run V07} resolusi awal 30-menit yang diakumulasikan ke interval 1 jam.
+    \item \textbf{ECMWF ERA5 Reanalysis:} Dataset reanalisis iklim global generasi kelima dengan 13 parameter fisis atmosferik permukaan dan kolom total.
+    \item \textbf{AWS IoT Jerukagung:} Stasiun cuaca otomatis berbasis IoT lokal di Jerukagung, Klirong, Kebumen (koordinat $7^\circ 40'\text{S}, 109^\circ 39'\text{E}$) dengan sensor \textit{tipping bucket rain gauge}, suhu, kelembapan, tekanan, dan titik embun.
+\end{enumerate}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Spesifikasi Sumber Data Meteorologi dan Presipitasi}
+\label{tab:data_specs}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lllll@{}}
+\toprule
+\textbf{Sumber Data} & \textbf{Tipe Instrumen} & \textbf{Resolusi Asli} & \textbf{Agregasi Analisis} & \textbf{Variabel Utama} \\
+\midrule
+\texttt{JAXA GSMaP} & Satelit PMW/IR (Gauge-Cal) & 1 Jam ($0{,}1^\circ$) & Akumulasi 1 Jam & Curah Hujan (\textit{Rain}) \\
+\texttt{NASA GPM IMERG} & Satelit Multi-Sensor (Final) & 30 Menit ($0{,}1^\circ$) & Akumulasi 1 Jam & Curah Hujan (\textit{Rain}) \\
+\texttt{ECMWF ERA5} & Reanalisis Numerik Asimilasi & 1 Jam ($0{,}25^\circ$) & Nilai Sesaat/Akumulasi & 13 Fitur Atmosfer \\
+\texttt{AWS IoT Lokal} & Stasiun Otomatis (\textit{In-situ}) & Interval Pengiriman IoT & Akumulasi/Rerata 1 Jam & 5 Variabel Cuaca \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\subsection{Standarisasi Waktu dan Resampling}
+Seluruh stempel waktu dikonversi secara mutlak ke basis \textit{Coordinated Universal Time} (UTC). Untuk variabel presipitasi, agregasi dilakukan dengan metode jumlahan (\textit{sum}), sedangkan untuk variabel kontinu termodinamika (suhu, kelembapan, tekanan, titik embun) digunakan metode perataan (\textit{mean}). Periode evaluasi sinkron mencakup rentang 1 Januari 2025 pukul 00:00 UTC hingga 31 Mei 2026 pukul 23:00 UTC, menghasilkan tepat $12.384$ baris observasi berpasangan tanpa adanya data duplikat.
+
+% =============================================================================
+\section{Evaluasi Variabel Meteorologi Permukaan (ERA5 vs AWS IoT)}
+% =============================================================================
+Sebelum mengevaluasi presipitasi, dilakukan validasi terhadap variabel termodinamika permukaan antara reanalisis ERA5 dan sensor AWS IoT Jerukagung.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{scatter_vs_iot_temperature_temperature_ERA5_Reanalisis.png}
+        \caption{Suhu Udara ($T_{2m}$)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{scatter_vs_iot_pressure_pressure_ERA5_Reanalisis.png}
+        \caption{Tekanan Permukaan ($P_{srf}$)}
+    \end{subfigure}
+    \\[0.3cm]
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{scatter_vs_iot_humidity_humidity_ERA5_Reanalisis.png}
+        \caption{Kelembapan Relatif ($RH$)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{scatter_vs_iot_dewpoint_dewpoint_ERA5_Reanalisis.png}
+        \caption{Titik Embun ($T_d$)}
+    \end{subfigure}
+    \caption{Diagram Pencar (\textit{Scatter Plot}) Perbandingan Variabel Cuaca Permukaan: Sensor AWS IoT Jerukagung vs ECMWF ERA5 (Garis merah putus-putus menunjukkan \textit{1:1 Perfect Fit}).}
+    \label{fig:scatter_cuaca}
+\end{figure}
+
+Gambar \ref{fig:scatter_cuaca} dan \ref{fig:timeseries_cuaca} menunjukkan bahwa ERA5 memiliki kesesuaian yang sangat tinggi dengan stasiun AWS IoT Jerukagung untuk suhu udara ($r > 0{,}85$) dan tekanan permukaan ($r > 0{,}90$). Pola variasi harian (\textit{diurnal cycle}) suhu dan kelembapan tertangkap secara konsisten, membuktikan keandalan ERA5 sebagai prediktor termodinamika makro.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{timeseries_monthly_temperature.png}
+        \caption{Tren Bulanan Rata-Rata Suhu}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{timeseries_monthly_pressure.png}
+        \caption{Tren Bulanan Rata-Rata Tekanan}
+    \end{subfigure}
+    \caption{Profil Rata-Rata Deret Waktu Bulanan Variabel Cuaca Permukaan (2025--2026).}
+    \label{fig:timeseries_cuaca}
+\end{figure}
+
+% =============================================================================
+\section{Analisis Korelasi Presipitasi Jam-Jaman}
+% =============================================================================
+Karakteristik sebaran curah hujan jam-jaman dievaluasi secara serentak menggunakan matriks diagram pencar (\textit{Scatter Plot Matrix}) $4 \times 4$ yang disajikan pada Gambar \ref{fig:rain_scatter_matrix}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{rain_scatterplot_matrix.png}
+    \caption{Matriks Diagram Pencar (\textit{Scatter Plot Matrix}) Curah Hujan Jam-jaman Antar Seluruh Pasangan Sumber Data (Diagonal menunjukkan histogram distribusi frekuensi kejadian hujan).}
+    \label{fig:rain_scatter_matrix}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{rain_scatter_details.png}
+    \caption{Diagram Pencar Detail (\textit{Hexbin Density Plot}) Presipitasi Setiap Produk terhadap Pengamatan Stasiun AWS IoT Jerukagung (Skala logaritmik densitas titik, garis merah = regresi linier OLS, garis hitam = 1:1 \textit{Perfect Fit}).}
+    \label{fig:rain_scatter_details}
+\end{figure}
+
+\subsection{Matriks Heatmap Korelasi Pearson \& Spearman}
+Hubungan linier langsung dan hubungan monotonik berbasis peringkat dihitung menggunakan formulasi Pearson ($r$) dan Spearman ($\rho$):
+\begin{equation}
+r = \frac{\sum_{i=1}^n (x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\sum_{i=1}^n (x_i - \bar{x})^2} \sqrt{\sum_{i=1}^n (y_i - \bar{y})^2}}, \quad \rho = 1 - \frac{6 \sum_{i=1}^n d_i^2}{n(n^2 - 1)}
+\end{equation}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{rain_correlation_pearson_heatmap.png}
+        \caption{Heatmap Korelasi Pearson ($r$)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{rain_correlation_spearman_heatmap.png}
+        \caption{Heatmap Korelasi Spearman ($\rho$)}
+    \end{subfigure}
+    \caption{Matriks Heatmap Korelasi Curah Hujan Jam-jaman ($N = 12.384$ jam): (a) Hubungan Linier Pearson dan (b) Hubungan Monotonik Rank Spearman.}
+    \label{fig:rain_heatmaps}
+\end{figure}
+
+Gambar \ref{fig:rain_heatmaps} dan \ref{fig:rain_bar} memperlihatkan bahwa:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{NASA GPM IMERG} mencapai korelasi linier tertinggi terhadap AWS IoT Lokal ($r = 0{,}410$), setara dengan korelasi antar satelit GSMaP vs IMERG ($r = 0{,}410$).
+    \item \textbf{JAXA GSMaP} memiliki hubungan rank monotonik yang kuat terhadap AWS IoT ($\rho = 0{,}341$), sedikit lebih tinggi dibandingkan IMERG vs AWS ($\rho = 0{,}338$).
+    \item \textbf{ECMWF ERA5} memiliki korelasi linier yang rendah terhadap presipitasi instan AWS ($r = 0{,}099$), namun memiliki korelasi rank yang cukup baik ($\rho = 0{,}194$ vs AWS, $\rho = 0{,}357$ vs IMERG), mencerminkan sifat reanalisis yang menangkap waktu kejadian hujan secara makro tetapi mengalami efek penghalusan (\textit{spatial smoothing}) pada intensitas puncak konvektif lokal.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{rain_correlation_bar.png}
+    \caption{Diagram Batang Kekuatan Korelasi Pearson ($r$) Antar Seluruh Pasangan Data Presipitasi.}
+    \label{fig:rain_bar}
+\end{figure}
+
+% =============================================================================
+\section{Evaluasi Multimetrik Error Presipitasi vs AWS IoT Lokal}
+% =============================================================================
+Untuk mengukur akurasi absolut dan penalti error kuadratik terhadap observasi lapangan, dihitung metrik \textit{Mean Bias Error} (MBE), \textit{Mean Absolute Error} (MAE), dan \textit{Root Mean Square Error} (RMSE):
+\begin{equation}
+\text{MBE} = \frac{1}{n}\sum_{i=1}^n (S_i - O_i), \quad \text{MAE} = \frac{1}{n}\sum_{i=1}^n |S_i - O_i|, \quad \text{RMSE} = \sqrt{\frac{1}{n}\sum_{i=1}^n (S_i - O_i)^2}
+\end{equation}
+di mana $S_i$ adalah estimasi satelit/reanalisis dan $O_i$ adalah pengamatan aktual stasiun AWS IoT.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Ringkasan Resmi Metrik Evaluasi Error Presipitasi Jam-jaman terhadap AWS IoT Jerukagung ($N = 12.384$ Jam)}
+\label{tab:error_summary_real}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrrr@{}}
+\toprule
+\textbf{Produk Presipitasi} & \textbf{MBE (mm/jam)} & \textbf{MAE (mm/jam)} & \textbf{RMSE (mm/jam)} & \textbf{Pearson $r$} & \textbf{Spearman $\rho$} & \textbf{$R^2$} \\
+\midrule
+\texttt{JAXA GSMaP} & \textbf{-0,0168} & \textbf{0,5252} & \textbf{1,4997} & 0,3083 & \textbf{0,3408} & 0,0950 \\
+\texttt{NASA GPM IMERG} & +0,5134 & 0,8804 & 2,8260 & \textbf{0,4105} & 0,3377 & \textbf{0,1685} \\
+\texttt{ECMWF ERA5} & +0,0074 & 0,6285 & 1,8788 & 0,0992 & 0,1944 & 0,0098 \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{rain_bias_mae_vs_aws.png}
+        \caption{MAE (\textit{viridis})}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{rain_bias_rmse_vs_aws.png}
+        \caption{RMSE (\textit{magma})}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.32\textwidth}
+        \includegraphics[width=\textwidth]{rain_bias_mbe_vs_aws.png}
+        \caption{MBE (\textit{rainbow})}
+    \end{subfigure}
+    \caption{Evaluasi Grafik Batang Metrik Galat Presipitasi terhadap AWS IoT Lokal: (a) Mean Absolute Error, (b) Root Mean Square Error, dan (c) Mean Bias Error.}
+    \label{fig:rain_bias_bars}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.88\textwidth]{rain_bias_error_boxplot.png}
+    \caption{Diagram Kotak (\textit{Boxplot}) Distribusi Residual Galat Presipitasi ($Satelit - AWS$) pada Kejadian Hujan Basah ($> 0{,}1\text{ mm/jam}$).}
+    \label{fig:rain_residual_box}
+\end{figure}
+
+Berdasarkan Tabel \ref{tab:error_summary_real} dan Gambar \ref{fig:rain_bias_bars}--\ref{fig:rain_residual_box}:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{JAXA GSMaP} terbukti sebagai produk dengan galat dispersi terendah di Kebumen ($\text{MAE} = 0{,}5252\text{ mm/jam}$, $\text{RMSE} = 1{,}4997\text{ mm/jam}$) dengan bias sistematis sangat kecil ($\text{MBE} = -0{,}0168\text{ mm/jam}$).
+    \item \textbf{NASA GPM IMERG} mengalami kecenderungan overestimasi sistematis ($\text{MBE} = +0{,}5134\text{ mm/jam}$) yang meningkatkan nilai MAE ($0{,}8804\text{ mm/jam}$) dan RMSE ($2{,}8260\text{ mm/jam}$), meskipun memiliki korelasi linier ($r = 0{,}4105$) tertinggi.
+    \item \textbf{ECMWF ERA5} memiliki nilai bias mendekati nol ($\text{MBE} = +0{,}0074\text{ mm/jam}$) dengan galat absolut moderat ($\text{MAE} = 0{,}6285\text{ mm/jam}$).
+\end{itemize}
+
+\subsection{Distribusi Ambang Batas Kejadian Hujan}
+Evaluasi diskrit terhadap kemampuan deteksi kejadian hujan dengan ambang batas (\textit{rain threshold}) $\ge 0{,}2\text{ mm/jam}$ disajikan pada Gambar \ref{fig:rain_threshold}. Sensor AWS IoT mencatat $2.280$ jam hujan ($18{,}4\%$), sedangkan GSMaP mencatat $4.581$ jam ($37{,}0\%$), ERA5 mencatat $3.568$ jam ($28{,}8\%$), dan IMERG mencatat $3.029$ jam ($24{,}5\%$). Hal ini mengindikasikan bahwa satelit cenderung mendeteksi presipitasi ringan di atmosfer atas yang sebagian mengalami evaporasi sebelum mencapai permukaan tanah (\textit{virga}).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{rain_threshold_simulation_counts.png}
+    \caption{Perbandingan Jumlah Jam Kejadian Hujan ($\ge 0{,}2\text{ mm/jam}$) dan Tidak Hujan ($< 0{,}2\text{ mm/jam}$) Selama Periode Observasi.}
+    \label{fig:rain_threshold}
+\end{figure}
+
+% =============================================================================
+\section{Uji Signifikansi Statistik Distribusi Presipitasi}
+% =============================================================================
+Untuk menguji apakah perbedaan antar produk presipitasi signifikan secara statistik, dilakukan dua uji hipotesis non-parametrik:
+
+\subsection{Uji Wilcoxon Signed-Rank (Data Berpasangan Jam Basah)}
+Uji Wilcoxon diterapkan pada jam-jam di mana setidaknya salah satu produk mendeteksi hujan $> 0{,}1\text{ mm/jam}$ (Tabel \ref{tab:wilcoxon_results}). Seluruh pasangan menghasilkan nilai $p < 0{,}001$, yang membuktikan bahwa perbedaan median magnitudo presipitasi jam-jaman antar satelit, reanalisis, dan AWS IoT berbeda nyata secara statistik.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Hasil Uji Wilcoxon Signed-Rank Presipitasi Jam-jaman ($p < 0{,}05$)}
+\label{tab:wilcoxon_results}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrl@{}}
+\toprule
+\textbf{Perbandingan Pasangan} & \textbf{Jumlah Sampel ($n$)} & \textbf{Statistik Uji ($W$)} & \textbf{$p$-value} & \textbf{Signifikansi} \\
+\midrule
+\texttt{IMERG vs ERA5 Reanalisis} & 6.242 & 6.786.152{,}00 & $1{,}0626 \times 10^{-15}$ & Berbeda Nyata ($p < 0{,}05$) \\
+\texttt{GSMaP vs ERA5 Reanalisis} & 7.630 & 10.985.498{,}00 & $6{,}3944 \times 10^{-33}$ & Berbeda Nyata ($p < 0{,}05$) \\
+\texttt{IMERG vs AWS Lokal} & 4.543 & 2.115.823{,}00 & $3{,}1727 \times 10^{-124}$ & Berbeda Nyata ($p < 0{,}05$) \\
+\texttt{GSMaP vs AWS Lokal} & 6.258 & 4.908.156{,}00 & $2{,}6437 \times 10^{-124}$ & Berbeda Nyata ($p < 0{,}05$) \\
+\texttt{ERA5 Reanalisis vs AWS Lokal} & 6.031 & 6.253.957{,}00 & $2{,}2488 \times 10^{-48}$ & Berbeda Nyata ($p < 0{,}05$) \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\subsection{Uji Mann-Whitney U (Musim Hujan vs Musim Kemarau)}
+Uji Mann-Whitney U membandingkan distribusi presipitasi antara Musim Hujan (November--April, $n = 7.224$ jam) dan Musim Kemarau (Mei--Oktober, $n = 5.160$ jam). Hasil pada Tabel \ref{tab:mannwhitney_results} membuktikan seluruh dataset menangkap kontras musiman tropis secara sangat signifikan ($p \le 7{,}13 \times 10^{-7}$).
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Hasil Uji Mann-Whitney U: Musim Hujan (Nov--Apr) vs Musim Kemarau (Mei--Okt)}
+\label{tab:mannwhitney_results}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrl@{}}
+\toprule
+\textbf{Dataset Presipitasi} & \textbf{Sampel Musim Hujan} & \textbf{Sampel Kemarau} & \textbf{$p$-value} & \textbf{Perbedaan Musim} \\
+\midrule
+\texttt{GPM IMERG} & 7.224 & 5.160 & $7{,}2312 \times 10^{-137}$ & Sangat Signifikan ($p < 0{,}05$) \\
+\texttt{GSMaP} & 7.224 & 5.160 & $7{,}1302 \times 10^{-07}$ & Sangat Signifikan ($p < 0{,}05$) \\
+\texttt{ERA5 Reanalisis} & 7.224 & 5.160 & $1{,}0168 \times 10^{-24}$ & Sangat Signifikan ($p < 0{,}05$) \\
+\texttt{AWS Lokal} & 7.224 & 5.160 & $1{,}9617 \times 10^{-199}$ & Sangat Signifikan ($p < 0{,}05$) \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+% =============================================================================
+\section{Dinamika Temporal Deret Waktu Suhu \& Presipitasi (2025--2026)}
+% =============================================================================
+Gambar \ref{fig:temporal_trends} memperlihatkan dinamika temporal suhu harian dan akumulasi bulanan presipitasi selama periode penelitian.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.95\textwidth}
+        \includegraphics[width=\textwidth]{trend_linechart_temperature_daily.png}
+        \caption{Tren Rata-Rata Suhu Harian (ERA5 vs AWS Lokal)}
+    \end{subfigure}
+    \\[0.3cm]
+    \begin{subfigure}[b]{0.95\textwidth}
+        \includegraphics[width=\textwidth]{trend_linechart_rainfall_monthly.png}
+        \caption{Tren Akumulasi Curah Hujan Bulanan (GSMaP, IMERG, ERA5, AWS Lokal)}
+    \end{subfigure}
+    \\[0.3cm]
+    \begin{subfigure}[b]{0.95\textwidth}
+        \includegraphics[width=\textwidth]{trend_linechart_rainfall_7day_moving.png}
+        \caption{Tren Curah Hujan Rata-Rata Bergerak 7-Hari (\textit{7-Day Moving Average})}
+    \end{subfigure}
+    \caption{Analisis Deret Waktu Dinamika Suhu dan Presipitasi di Kebumen (2025--2026).}
+    \label{fig:temporal_trends}
+\end{figure}
+
+% =============================================================================
+\section{Analisis Fitur Fisik Atmosferik ERA5 untuk Pre-Training AI}
+% =============================================================================
+Dalam arsitektur pembelajaran mesin dan \textit{Deep Learning} (seperti BiLSTM dan XGBoost), data ERA5 digunakan untuk tahap \textit{Pre-Training} fitur meteorologi fisik. Evaluasi korelasi dilakukan pada 13 parameter fisik atmosferik:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Parameter Termodinamika \& Permukaan:} \texttt{temperature}, \texttt{humidity}, \texttt{dewpoint}, \texttt{pressure}, \texttt{rainrate}.
+    \item \textbf{Parameter Dinamika Angin \& Radiasi:} \texttt{era5\_u\_wind} ($u_{10}$), \texttt{era5\_v\_wind} ($v_{10}$), \texttt{era5\_direct\_rad}, \texttt{era5\_sunshine}.
+    \item \textbf{Parameter Konvektif \& Kolom Total:} \texttt{era5\_cloud\_cover}, \texttt{era5\_cape} (\textit{Convective Available Potential Energy}), \texttt{era5\_tcwv} (\textit{Total Column Water Vapour}), \texttt{era5\_moisture\_div} (\textit{Moisture Divergence}).
+\end{enumerate}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{pretraining_features_pearson_heatmap.png}
+        \caption{Baseline ERA5 (Pearson $r$)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{pretraining_features_spearman_heatmap.png}
+        \caption{Baseline ERA5 (Spearman $\rho$)}
+    \end{subfigure}
+    \\[0.3cm]
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{pretraining_features_pearson_heatmap_gsmap_rain.png}
+        \caption{ERA5 + GSMaP Rain (Pearson $r$)}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includegraphics[width=\textwidth]{pretraining_features_spearman_heatmap_gsmap_rain.png}
+        \caption{ERA5 + GSMaP Rain (Spearman $\rho$)}
+    \end{subfigure}
+    \caption{Matriks Korelasi $13 \times 13$ Fitur Atmosferik ERA5: (Atas) Presipitasi Baseline ERA5, (Bawah) Presipitasi Diganti Target Citra Satelit JAXA GSMaP.}
+    \label{fig:pretrain_heatmaps}
+\end{figure}
+
+Gambar \ref{fig:pretrain_heatmaps} mengungkap korelasi fisis yang sangat konsisten dengan prinsip meteorologi tropis:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Total Column Water Vapour (\texttt{era5\_tcwv}):} Memiliki korelasi positif tertinggi terhadap presipitasi ($r = +0{,}27$, $\rho = +0{,}30$ pada hujan GSMaP; $r = +0{,}29$, $\rho = +0{,}51$ pada hujan ERA5).
+    \item \textbf{Moisture Divergence (\texttt{era5\_moisture\_div}):} Memiliki korelasi negatif kuat ($r = -0{,}18$, $\rho = -0{,}20$ pada GSMaP; $r = -0{,}86$ pada ERA5). Nilai divergensi negatif merepresentasikan konvergensi massa uap air yang memicu pertumbuhan awan konvektif pembawa hujan.
+    \item \textbf{Cloud Cover (\texttt{era5\_cloud\_cover}):} Berkorelasi positif kuat terhadap presipitasi ($r = +0{,}17$, $\rho = +0{,}24$).
+    \item \textbf{Tekanan Udara (\texttt{pressure}):} Berkorelasi negatif ($r = -0{,}13$, $\rho = -0{,}15$), sesuai dengan kondisi depresi tekanan rendah saat terjadi badai konvektif.
+\end{itemize}
+
+% =============================================================================
+\section{Klimatologi 21 Tahun (2005--2025) \& Variabilitas Jangka Panjang}
+% =============================================================================
+Untuk menempatkan evaluasi jangka pendek 2025--2026 dalam konteks variabilitas iklim jangka panjang, dilakukan analisis klimatologi 21 tahun (2005--2025 / 252 bulan) di Kebumen.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{monthly_temperature_trend_2005_2025.png}
+    \caption{Tren Rata-Rata Suhu Bulanan ERA5 Kebumen (2005--2025) dengan Garis Tren Linier ($+0{,}021^\circ\text{C/tahun}$).}
+    \label{fig:temp_trend_20yr}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{monthly_rainfall_trend_2005_2025.png}
+    \caption{Perbandingan Tren Akumulasi Curah Hujan Bulanan (2005--2025) untuk GPM IMERG, GSMaP, dan ERA5 Reanalisis.}
+    \label{fig:rain_trend_20yr}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{monthly_climatology_barchart_2005_2025.png}
+    \caption{Pola Musiman Rata-Rata Curah Hujan Bulanan (Klimatologi 2005--2025) Berdasarkan GPM IMERG, GSMaP, dan ERA5.}
+    \label{fig:climatology_bar}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{monthly_rainfall_variability_boxplot.png}
+    \caption{Diagram Kotak (\textit{Boxplot}) Variabilitas Curah Hujan Bulanan Jerukagung dan Sekitarnya (2005--2025).}
+    \label{fig:boxplot_20yr}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.95\textwidth}
+        \includegraphics[width=\textwidth]{monthly_rainfall_anomaly_trend_2005_2025.png}
+        \caption{Indeks Anomali Presipitasi Bulanan GPM IMERG}
+    \end{subfigure}
+    \\[0.3cm]
+    \begin{subfigure}[b]{0.95\textwidth}
+        \includegraphics[width=\textwidth]{monthly_rainfall_anomaly_trend_3satellites_2005_2025.png}
+        \caption{Perbandingan Subplots Anomali 3 Produk: IMERG, GSMaP, dan ERA5}
+    \end{subfigure}
+    \caption{Indeks Anomali Presipitasi Bulanan (2005--2025): Area biru menunjukkan surplus hujan (\textit{La Niña / Wet Anomaly}) dan area merah menunjukkan defisit hujan (\textit{El Niño / Dry Anomaly}).}
+    \label{fig:anomaly_trends}
+\end{figure}
+
+Temuan utama analisis klimatologi 20 tahun meliputi:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Tren Pemanasan Suhu:} Terdapat laju peningkatan suhu permukaan rata-rata sebesar $+0{,}021^\circ\text{C/tahun}$ ($+0{,}42^\circ\text{C}$ dalam 2 dekade).
+    \item \textbf{Pola Puncak Musiman:} Curah hujan maksimum terjadi pada periode Desember--Februari ($> 350\text{ mm/bulan}$), dengan bulan terkering pada Juli--Agustus ($< 80\text{ mm/bulan}$).
+    \item \textbf{Dispersi Variabilitas:} Diagram kotak (\textit{boxplot}) pada Gambar \ref{fig:boxplot_20yr} membuktikan variabilitas presipitasi terbesar terjadi pada bulan Januari dan November, dengan kehadiran nilai ekstrem (\textit{outliers}) saat fase puncak La Niña kuat (seperti tahun 2010 dan 2022).
+\end{enumerate}
+
+% =============================================================================
+\section{Kesimpulan \& Implikasi Pemodelan AI}
+% =============================================================================
+Berdasarkan seluruh rangkaian evaluasi kuantitatif, statistik, dan fisis atmosferik, diperoleh kesimpulan sebagai berikut:
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Kinerja Produk Presipitasi:} JAXA GSMaP menunjukkan akurasi error terkecil ($\text{MAE} = 0{,}5252\text{ mm/jam}$, $\text{RMSE} = 1{,}4997\text{ mm/jam}$, $\text{MBE} = -0{,}0168\text{ mm/jam}$), sedangkan NASA GPM IMERG memiliki korelasi linier tertinggi ($r = 0{,}4105$).
+    \item \textbf{Validitas Reanalisis ERA5:} ERA5 terbukti sangat akurat dalam memodelkan suhu dan tekanan permukaan, serta menyediakan 13 fitur fisis kolom total (\texttt{tcwv}, \texttt{moisture\_div}, \texttt{cape}, \texttt{cloud\_cover}) yang memiliki relasi fisis konsisten terhadap kejadian presipitasi.
+    \item \textbf{Rekomendasi Pemodelan Deep Learning:} Strategi optimal untuk pemodelan prediksi presipitasi di Kebumen adalah:
+    \begin{itemize}
+        \item \textbf{Tahap Pre-Training:} Memanfaatkan dataset jangka panjang ERA5 (2000--2026) dengan target presipitasi terkalibrasi JAXA GSMaP untuk membangun representasi fitur fisis atmosfer.
+        \item \textbf{Tahap Fine-Tuning:} Melakukan transfer learning dan adaptasi domain pada data observasi stasiun AWS IoT Jerukagung untuk mengeliminasi bias lokal.
+    \end{itemize}
+\end{enumerate}
+
+\end{document}

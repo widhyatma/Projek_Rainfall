@@ -21,7 +21,7 @@ era5_mapping = {
 
 # Rentang Waktu (Sesuai Permintaan dalam UTC)
 START_DATE = "2025-01-01 00:00:00"
-END_DATE   = "2026-05-31 23:59:59"
+END_DATE   = "2026-07-13 23:59:59"
 
 # Penyesuaian Path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -259,7 +259,11 @@ def save_hourly_clean_dataset(df_clean, station_id="id-05", output_folder="clear
     if not isinstance(df_final.index, pd.DatetimeIndex):
         df_final.index = pd.to_datetime(df_final.index)
         
-    df_final['unixtime'] = df_final.index.astype('int64') // 10**9
+    # Cast to datetime64[ns] strictly to ensure unixtime is in seconds regardless of internal pandas unit (Pandas 2.0+ support)
+    if df_final.index.tz is not None:
+        df_final['unixtime'] = df_final.index.astype('datetime64[ns, UTC]').astype('int64') // 10**9
+    else:
+        df_final['unixtime'] = df_final.index.astype('datetime64[ns]').astype('int64') // 10**9
     df_final['datetime_utc'] = df_final.index.strftime('%Y-%m-%d %H:%M:%S')
     
     kolom_wajib = ['datetime_utc', 'unixtime', 'temperature', 'humidity', 'pressure', 'dewpoint', 'rainrate']
