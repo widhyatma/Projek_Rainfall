@@ -118,7 +118,7 @@ When discussing, documenting, or reporting results for the short-term rainfall p
    - Spatial Mismatch Challenge: Satellite products (GSMaP, IMERG at ~11 km grid) and reanalysis (ERA5 at ~31 km grid) lack micro-scale convective representation, necessitating domain adaptation (fine-tuning) to local IoT ground truth.
 3. **Model Comparison Framing (XGBoost vs LSTM)**:
    - **XGBoost (Tree-Based)**: Evaluated as a high-precision, computationally lightweight benchmark with Bayesian Optuna HPO; excels in precision and lower overall RMSE.
-   - **BiLSTM (Deep Learning)**: Evaluated as a sequential diurnal memory network (24-hour sliding window); excels in temporal dependency tracking, higher recall, and detecting rain onset transitions.
+   - **LSTM (Deep Learning)**: Evaluated as a sequential diurnal memory network (24-hour sliding window); excels in temporal dependency tracking, higher recall, and detecting rain onset transitions.
    - **Scientific Verdict**: Both models demonstrate dramatic performance surges post-fine-tuning (Precision +42%, R² shifting from negative to +0.50), proving that satellite-to-ground domain adaptation is viable for localized hydrometeorological forecasting in data-sparse tropical environments.
 
 
