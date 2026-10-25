@@ -140,3 +140,49 @@ When writing, modifying, or executing Google Earth Engine (GEE) JavaScript scrip
 4. **Fine-Tuning & Domain Adaptation Temporal Bridge**:
    - Ground station observations (AWS IoT `id-05_clear_data_hourly.csv`) span `2025-01-01` to `2026-05-31` (or later).
    - When preparing ERA5 for fine-tuning, retain the 2026 observation bridge or construct the fine-tuning temporal index directly from station observation timestamps to avoid empty validation/test splits in 2026.
+
+
+### Academic Research Affiliation & Citation Standards
+When generating, updating, or authoring metadata, titles, headers, LaTeX manuscripts, or documentation for research studies in this repository:
+1. **Mandatory Institutional Affiliation**:
+   - Always state the author affiliation as **Universitas Putra Bangsa** (Kebumen, Jawa Tengah).
+   - Never infer, hallucinate, or substitute any other university or institution unless explicitly instructed by the user.
+2. **Study Area & Thesis Context**:
+   - Location: Desa Jerukagung, Kecamatan Klirong, Kabupaten Kebumen, Jawa Tengah (AWS IoT Stasiun Klimatologi Jerukagung).
+
+
+### Deep Learning Bayesian Optimization (Optuna TPE Multivariate + Hyperband) Architecture
+When designing or extending Bayesian Optimization pipelines for Deep Learning models (LSTM/BiLSTM):
+1. **Multivariate TPE Sampler**:
+   - Always configure `TPESampler(multivariate=True, n_startup_trials=15, gamma=0.20, warn_independent_sampling=False)` to model multidimensional covariance between dependent parameters (e.g., learning rate vs batch size, layer units vs regularizers).
+2. **Successive Halving Pruning Protocol**:
+   - Use `HyperbandPruner(min_resource=5, max_resource=30, reduction_factor=3)` to eliminate poor configurations at intermediate rungs (epochs 5, 10, 15), saving 60-75% of GPU compute time.
+3. **Zero-Dependency Optuna-Keras Pruning Callback**:
+   - In Optuna 4+, never rely on `optuna.integration.TFKerasPruningCallback` (which fails due to decoupled sub-packages). Always implement a native custom callback:
+     ```python
+     class OptunaKerasPruningCallback(tf.keras.callbacks.Callback):
+         def __init__(self, trial, monitor='val_loss'):
+             super().__init__()
+             self.trial = trial
+             self.monitor = monitor
+
+         def on_epoch_end(self, epoch, logs=None):
+             logs = logs or {}
+             val = logs.get(self.monitor)
+             if val is not None:
+                 self.trial.report(float(val), step=epoch)
+                 if self.trial.should_prune():
+                     raise optuna.TrialPruned(f"Pruned at epoch {epoch}")
+     ```
+4. **Regularization & Two-Stage Hurdle Search Spaces**:
+   - Include L2 `weight_decay` kernel regularization ($10^{-6}$ to $10^{-3}$, log scale) alongside dropout to prevent memory gate saturation.
+   - For classification: Optimize validation F1-Score via dynamic threshold search ($\tau \in [0.20, 0.70]$) to counteract zero-inflation (>85% dry hours).
+   - For regression: Optimize log-transformed precipitation ($\log(1+y)$) MSE on positive rain occurrences.
+5. **Mandatory Diagnostic & Publication Visualizations**:
+   - Every Bayesian HPO study must export high-resolution (300 DPI) static figures to `outputs_*/plots/`:
+     - Panel 1: Optimization History with vertical startup transition line ($N=15$) and cumulative best step curve.
+     - Panel 2: Hyperparameter Importances via fANOVA (`optuna.importance.get_param_importances`).
+     - Panel 3: 2D Response Surface / Parameter Interaction Landscape.
+     - Panel 4: Pruning efficiency & resource allocation breakdown.
+   - Save full study trials to CSV (`optuna_trials_*.csv`) and SQLite database for full experimental provenance.
+
