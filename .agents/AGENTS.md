@@ -154,7 +154,8 @@ When generating, updating, or authoring metadata, titles, headers, LaTeX manuscr
 ### Deep Learning Bayesian Optimization (Optuna TPE Multivariate + Hyperband) Architecture
 When designing or extending Bayesian Optimization pipelines for Deep Learning models (LSTM/BiLSTM):
 1. **Multivariate TPE Sampler**:
-   - Always configure `TPESampler(multivariate=True, n_startup_trials=15, gamma=0.20, warn_independent_sampling=False)` to model multidimensional covariance between dependent parameters (e.g., learning rate vs batch size, layer units vs regularizers).
+   - Always configure `TPESampler(multivariate=True, n_startup_trials=15, gamma=lambda n: min(int(np.ceil(0.20 * n)), 25), warn_independent_sampling=False)` to model multidimensional covariance between dependent parameters (e.g., learning rate vs batch size, layer units vs regularizers).
+   - **Callable Gamma Guardrail**: Never pass a raw float (e.g. `gamma=0.20`) to `TPESampler`. Optuna evaluates `self._gamma(n)` dynamically as a function that takes trial count $N$ and returns the integer count of elite trials for $\ell(x)$. Passing a raw float triggers `TypeError: 'float' object is not callable`.
 2. **Successive Halving Pruning Protocol**:
    - Use `HyperbandPruner(min_resource=5, max_resource=30, reduction_factor=3)` to eliminate poor configurations at intermediate rungs (epochs 5, 10, 15), saving 60-75% of GPU compute time.
 3. **Zero-Dependency Optuna-Keras Pruning Callback**:
