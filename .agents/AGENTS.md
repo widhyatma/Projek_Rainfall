@@ -140,6 +140,12 @@ When writing, modifying, or executing Google Earth Engine (GEE) JavaScript scrip
 4. **Fine-Tuning & Domain Adaptation Temporal Bridge**:
    - Ground station observations (AWS IoT `id-05_clear_data_hourly.csv`) span `2025-01-01` to `2026-05-31` (or later).
    - When preparing ERA5 for fine-tuning, retain the 2026 observation bridge or construct the fine-tuning temporal index directly from station observation timestamps to avoid empty validation/test splits in 2026.
+5. **Historical Model Pre-Training Split Invariant (1998–2025)**:
+   - For neural network pre-training and Two-Stage modeling in `DeepLearning_Satelit/`, the historical split is strictly fixed and must NEVER be altered:
+     - `TRAIN_START = '1998-01-01'` to `TRAIN_END = '2020-12-31'`
+     - `VAL_START = '2021-01-01'` to `VAL_END = '2023-12-31'`
+     - `TEST_START = '2024-01-01'` to `TEST_END = '2025-12-31'`
+   - Retain both `TRAIN_*` and `PRETRAIN__*` variable identifiers for total backward compatibility across notebooks.
 
 
 ### Academic Research Affiliation & Citation Standards
