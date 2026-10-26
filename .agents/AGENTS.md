@@ -181,8 +181,8 @@ When designing or extending Bayesian Optimization pipelines for Deep Learning mo
                  if self.trial.should_prune():
                      raise optuna.TrialPruned(f"Pruned at epoch {epoch}")
      ```
-4. **Regularization & Two-Stage Hurdle Search Spaces**:
-   - Include L2 `weight_decay` kernel regularization ($10^{-6}$ to $10^{-3}$, log scale) alongside dropout to prevent memory gate saturation.
+4. **Lean Two-Stage Hurdle Search Spaces**:
+   - Standardize search space on the lean baseline architecture from `model-ltsm-final.py`: `units_l1=[64, 128]`, `units_l2=[32, 64]`, `dropout=[0.1, 0.2, 0.3]`, `batch_size=[64, 128, 256]`, and `lr=1e-4 to 5e-3`. Avoid bloated unit sizes (e.g. 256) or heavy kernel regularizers that slow down recurrent backpropagation on large time series.
    - For classification: Optimize validation F1-Score via dynamic threshold search ($\tau \in [0.20, 0.70]$) to counteract zero-inflation (>85% dry hours).
    - For regression: Optimize log-transformed precipitation ($\log(1+y)$) MSE on positive rain occurrences.
 5. **Mandatory Diagnostic & Publication Visualizations**:
