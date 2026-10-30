@@ -12,7 +12,28 @@
 *.synctex
 *.fdb_latexmk
 *.gz
+*.bbl
+*.blg
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+*.synctex(busy)
+*.run.xml
+*-blx.bib
 __pycache__/
+
+# Scratch & Temporary Automation Scripts
+/scratch/
+scratch/
+
+# SQLite Databases & Local Telemetry Caches
+*.sqlite
+*.sqlite3
+*.db
+
+# Model Outputs & Telemetry Logs
 /Analisis_Meteorologi/Analisis_Bulanan/
 /Analisis_Meteorologi/open_meteo_jerukagung/
 /Analisis_Meteorologi/cache_data/
@@ -27,6 +48,7 @@ __pycache__/
 /DeepLearning_Meteorologi/outputs/
 /DeepLearning_Satelit/outputs/
 /Model_Imputasi/outputs/
+/Model_Imputasi/outputs_rekonstruksi/*.csv
 /DeepLearning_Satelit/outputs_lstm/
 /DeepLearning_Satelit/outputs_xgboost/
 /Google_Earth_Engine/ClimateEngineData
@@ -40,6 +62,9 @@ __pycache__/
 /DeepLearning_Satelit/outputs_inference
 /DeepLearning_Satelit/results_lstm.zip
 /DeepLearning_Satelit/results_xgboost.zip
+/LSTM_Bayesian/outputs/
+/LSTM_Bayesian/outputs_bayesian/
+outputs_bayesian/
 main.cpp
 /Model_Imputasi/cuaca_gabungan_jerukagung.csv
 Model_Imputasi/.cache.sqlite

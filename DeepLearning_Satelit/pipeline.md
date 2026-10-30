@@ -134,13 +134,29 @@ sequenceDiagram
     Evaluator->>Evaluator: Hitung Delta Improvement, Kurva ROC/PR, & Curah Hujan Kumulatif
 ```
 
-### Visualisasi Delta Peningkatan Akurasi Sebelum vs Sesudah Fine-Tuning:
+### Visualisasi Perbandingan Metrik (Sebelum vs Sesudah Fine-Tuning pada Data AWS):
 
-#### A. Kenaikan Metrik Klasifikasi (Precision, Recall, F1-Score)
-![Delta Klasifikasi](outputs_inference/figures/grouped_bar_delta_classification.png)
+#### A. Perbandingan Precision, Recall, dan F1-Score (Efek Adaptasi)
+![Perbandingan Klasifikasi](outputs_inference/figures/grouped_bar_delta_classification.png)
 
-#### B. Penurunan Galat Regresi Intensitas (MAE, RMSE, Bias)
-![Delta Regresi](outputs_inference/figures/grouped_bar_delta_regression.png)
+#### B. Perbandingan MAE, RMSE, dan R² Score (Efek Adaptasi)
+![Perbandingan Regresi](outputs_inference/figures/grouped_bar_delta_regression.png)
+
+#### C. Perbandingan ROC-AUC dan PR-AUC (Efek Adaptasi)
+![Perbandingan AUC](outputs_inference/figures/grouped_bar_delta_auc.png)
+
+---
+
+### Visualisasi Perbandingan Metrik Antar-Model pada Masing-Masing Tahap:
+
+#### 1. Perbandingan Metrik Klasifikasi Pre-Training (XGBoost vs LSTM pada Satelit GSMaP)
+![Klasifikasi Pre-Training](outputs_inference/figures/grouped_bar_pretrain_classification.png)
+
+#### 2. Perbandingan Metrik Regresi Pre-Training (XGBoost vs LSTM pada Satelit GSMaP)
+![Regresi Pre-Training](outputs_inference/figures/grouped_bar_pretrain_regression.png)
+
+#### 3. Perbandingan Metrik Klasifikasi Model Fine-Tuned (XGBoost vs LSTM pada Stasiun AWS)
+![Klasifikasi Fine-Tuned](outputs_inference/figures/grouped_bar_finetune_classification.png)
 
 ---
 
@@ -176,13 +192,18 @@ Dalam analisis hidrometeorologi dan aplikasi peringatan dini banjir, **konservas
 
 ## 7. Analisis Matriks Konfusi, Kurva ROC & Precision-Recall
 
-### A. Confusion Matrix (Tahap Fine-Tuned)
+### 7.0 Ilustrasi Konseptual Matriks Konfusi (TP, TN, FP, FN) & Metrik Standar Meteorologi
+Diagram referensi di bawah ini menguraikan definisi 4 kuadran klasifikasi biner presipitasi serta formulasi matematis metrik verifikasi standar BMKG/WMO:
+
+![Ilustrasi Konseptual Matriks Konfusi](outputs_inference/figures/ilustrasi_konseptual_confusion_matrix.png)
+
+### 7.1 Matriks Konfusi Empiris Model (Tahap Fine-Tuned pada Stasiun AWS)
 
 | Confusion Matrix: XGBoost (Fine-Tuned) | Confusion Matrix: LSTM (Fine-Tuned) |
 |:---:|:---:|
 | ![CM XGBoost](outputs_inference/figures/confusion_matrix_xgboost_finetune.png) | ![CM LSTM](outputs_inference/figures/confusion_matrix_lstm_finetune.png) |
 
-### B. Kurva Karakteristik Operasi Penerima (*ROC Curve*) & Precision-Recall (*PR Curve*)
+### 7.2 Kurva Karakteristik Operasi Penerima (*ROC Curve*) & Precision-Recall (*PR Curve*)
 
 | Kurva ROC Terpadu (4 Model pada AWS) | Kurva Precision-Recall Terpadu (4 Model pada AWS) |
 |:---:|:---:|
@@ -202,6 +223,10 @@ outputs_inference/
 │   ├── distribution_rain_finetune.png
 │   ├── grouped_bar_delta_classification.png
 │   ├── grouped_bar_delta_regression.png
+│   ├── grouped_bar_delta_auc.png
+│   ├── grouped_bar_pretrain_classification.png
+│   ├── grouped_bar_pretrain_regression.png
+│   ├── grouped_bar_finetune_classification.png
 │   ├── cumulative_rainfall_comparison.png
 │   ├── timeseries_comparison_pretrain.png
 │   ├── timeseries_comparison_finetune.png
@@ -209,6 +234,7 @@ outputs_inference/
 │   ├── finetune_comparison_lstm.png
 │   ├── scatter_comparison_pretrain.png
 │   ├── scatter_comparison_finetune.png
+│   ├── ilustrasi_konseptual_confusion_matrix.png
 │   ├── confusion_matrix_xgboost_finetune.png
 │   ├── confusion_matrix_lstm_finetune.png
 │   ├── roc_curve_comparison_aws.png

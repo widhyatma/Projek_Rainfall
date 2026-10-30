@@ -340,13 +340,46 @@ class ModelEvaluator:
         plt.close()
     def plot_confusion_matrix(self, y_true, y_pred, filename='confusion_matrix.png', suffix=''):
         cm = confusion_matrix(y_true, y_pred)
-        plt.figure(figsize=(10,8))
-        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False)
-        plt.title(f'Confusion Matrix {suffix}')
-        plt.ylabel('Aktual')
-        plt.xlabel('Prediksi')
+        tn, fp, fn, tp = cm.ravel()
+        total = len(y_true)
+        
+        acc = (tp + tn) / total if total > 0 else 0
+        pod = tp / (tp + fn) if (tp + fn) > 0 else 0
+        far = fp / (tp + fp) if (tp + fp) > 0 else 0
+        csi = tp / (tp + fp + fn) if (tp + fp + fn) > 0 else 0
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0
+        f1 = 2 * (prec * pod) / (prec + pod) if (prec + pod) > 0 else 0
+        
+        fig, ax = plt.subplots(figsize=(7.5, 6.2), dpi=300, facecolor='#ffffff')
+        sns.heatmap(cm, annot=False, cmap='Blues', cbar=True, ax=ax, linewidths=1.2, linecolor='#cbd5e1')
+        
+        cell_data = [
+            [f"TN (Correct Rejection)\n{tn:,}\n({tn/total*100:.1f}%)", f"FP (False Alarm)\n{fp:,}\n({fp/total*100:.1f}%)"],
+            [f"FN (Miss)\n{fn:,}\n({fn/total*100:.1f}%)", f"TP (Hit)\n{tp:,}\n({tp/total*100:.1f}%)"]
+        ]
+        
+        for i in range(2):
+            for j in range(2):
+                val = cm[i, j]
+                text_color = '#ffffff' if val > cm.max() * 0.55 else '#0f172a'
+                ax.text(j + 0.5, i + 0.5, cell_data[i][j], ha='center', va='center',
+                        fontsize=10.5, fontweight='bold', color=text_color, linespacing=1.3)
+                
+        ax.set_xticks([0.5, 1.5])
+        ax.set_yticks([0.5, 1.5])
+        ax.set_xticklabels(['Tidak Hujan (0)', 'Hujan (1)'], fontsize=11, fontweight='bold')
+        ax.set_yticklabels(['Tidak Hujan (0)', 'Hujan (1)'], fontsize=11, fontweight='bold')
+        
+        ax.set_xlabel('Kondisi Prediksi Model (Forecast)', fontsize=11.5, fontweight='bold', labelpad=8)
+        ax.set_ylabel('Kondisi Aktual Observasi (Ground Truth)', fontsize=11.5, fontweight='bold', labelpad=8)
+        
+        metrics_str = f"Accuracy: {acc*100:.1f}%  |  POD: {pod:.3f}  |  FAR: {far:.3f}  |  CSI: {csi:.3f}  |  F1: {f1:.3f}"
+        ax.set_title(f"Matriks Konfusi Klasifikasi Presipitasi {suffix}", fontsize=12.5, fontweight='bold', pad=18)
+        ax.text(0.5, 1.025, metrics_str, transform=ax.transAxes, ha='center', va='bottom',
+                fontsize=9.2, fontweight='semibold', color='#334155')
+        
         plt.tight_layout()
-        plt.savefig(self.dirs['plots'] / filename, dpi=300)
+        plt.savefig(self.dirs['plots'] / filename, dpi=300, bbox_inches='tight')
         plt.show()
         plt.close()
     def plot_roc_curve(self, y_true, y_prob):

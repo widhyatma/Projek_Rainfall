@@ -193,3 +193,19 @@ When designing or extending Bayesian Optimization pipelines for Deep Learning mo
      - Panel 4: Pruning efficiency & resource allocation breakdown.
    - Save full study trials to CSV (`optuna_trials_*.csv`) and SQLite database for full experimental provenance.
 
+
+
+### Repository Git Hygiene & File Exclusion Standards
+When organizing, staging, or committing files across this repository:
+1. **Temporary Scratch Scripts (`scratch/`)**:
+   - Always exclude the root `scratch/` directory and any one-off diagnostic, scraping, or auditing scripts from git tracking.
+   - Do not stage scratch scripts to version control; maintain them strictly as local scratchpads.
+2. **LaTeX Manuscript & Build Artifact Protocol**:
+   - Keep source documents (`*.tex`), bibliography definitions (`*.bib`), figures (`*.png`, `*.pdf`), and final compiled PDF reports (`*.pdf`) tracked under `Google_Earth_Engine/Dokumen Analisis/`.
+   - Strictly ignore compilation intermediate files: `*.aux`, `*.bbl`, `*.blg`, `*.fdb_latexmk`, `*.fls`, `*.lof`, `*.lot`, `*.out`, `*.synctex.gz`, `*.toc`.
+3. **Local Database & Telemetry Cache Safety**:
+   - Exclude all SQLite database files (`*.sqlite`, `*.sqlite3`, `*.db`) and GCP service account keys (`staklimjerukagung-*.json`) from commits.
+   - Stage deletions for any legacy tracked database files (e.g., `Model_Imputasi/.cache.sqlite`) using `git rm --cached` or `git rm`.
+4. **Experimental vs Production Pipeline Isolation**:
+   - Standalone experimental pipelines (such as Bayesian optimization in `LSTM_Bayesian/`) must reside in dedicated isolated directories with independent output paths (`outputs/`, `outputs_bayesian/`) excluded in `.gitignore`.
+   - Never overwrite or modify canonical production baselines (`DeepLearning_Satelit/model-ltsm-final.py`, `model-xgboost-final.py`) during experimental model explorations.

@@ -1,0 +1,13 @@
+Resolusi,Variabel / Produk,Peran dalam DL,1/e Decorrelation,First Zero-Cross,ACF @Lag 24h,ACF @Lag 48h,Rekomendasi Lookback
+1-Jam (Hourly),Presipitasi (Satelit GSMaP Pre-Train),Target Latih Makro (Pre-Train),3 jam,10 jam,0.107,0.078,24 Jam (1 Hari)
+1-Jam (Hourly),Presipitasi (AWS Jerukagung Ground Truth),Target Ground Truth (Fine-Tune),2 jam,12 jam,0.086,0.092,24 Jam (1 Hari)
+1-Jam (Hourly),Suhu Udara (ERA5 Temperature 2m),Fitur Input Atmosfer (X),5 jam,8 jam,0.904,0.879,24 Jam (1 Hari)
+1-Jam (Hourly),Kelembapan (ERA5 Relative Humidity),Fitur Input Atmosfer (X),5 jam,7 jam,0.844,0.814,24 Jam (1 Hari)
+1-Jam (Hourly),Tekanan Udara (ERA5 Surface Pressure),Fitur Input Atmosfer (X),42 jam,96 jam,0.906,0.824,24 Jam (1 Hari)
+1-Jam (Hourly),Energi Konvektif (ERA5 CAPE),Fitur Input Atmosfer (X),8 jam,96 jam,0.569,0.487,24 Jam (1 Hari)
+1-Jam (Hourly),Uap Air Kolom (ERA5 TCWV),Fitur Input Atmosfer (X),96 jam,96 jam,0.861,0.739,24 Jam (1 Hari)
+Harian (Daily),Daily IMERG,Dataset Benchmark Sinoptik Harian,1 hari,30 hari,0.119,0.067,7 s.d. 14 Hari
+Harian (Daily),Daily GSMaP,Dataset Benchmark Sinoptik Harian,1 hari,30 hari,0.106,0.1,7 s.d. 14 Hari
+Harian (Daily),Daily CHIRPS_RNL,Dataset Benchmark Sinoptik Harian,2 hari,30 hari,0.237,0.191,7 s.d. 14 Hari
+Harian (Daily),Daily ERA5_LAND,Dataset Benchmark Sinoptik Harian,2 hari,30 hari,0.154,0.134,7 s.d. 14 Hari
+Harian (Daily),Daily PERSIANN,Dataset Benchmark Sinoptik Harian,3 hari,30 hari,0.289,0.213,7 s.d. 14 Hari
