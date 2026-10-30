@@ -94,3 +94,4 @@ Setiap grafik diekspor ke folder `outputs_lstm_bayesian/plots/` secara mandiri (
 26. `26_two_stage_residual_distribution.png` — Distribusi residual error prediksi dan estimasi densitas normal.
 27. `27_two_stage_cumulative_rainfall.png` — Akumulasi presipitasi kumulatif model dua tahap sepanjang periode uji.
 28. `28_shap_feature_importance.png` — Diagram ringkasan nilai Shapley (SHAP) untuk interpretabilitas fitur atmosfer.
+
